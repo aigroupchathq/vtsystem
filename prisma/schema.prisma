@@ -1,0 +1,469 @@
+// VEDIC TREE OS — Multi-Tenant Database Schema
+// Generator & Datasource Definition
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// TENANCY & IDENTITY ACCESS MANAGEMENT (IAM)
+// ==========================================
+
+model Organization {
+  id         String   @id @default(uuid())
+  name       String
+  code       String   @unique
+  slug       String   @unique
+  logoUrl    String?
+  settings   String?  // JSON string
+  status     String   @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  regions    Region[]
+  schools    School[]
+  campuses   Campus[]
+  users      User[]
+  roles      Role[]
+  auditLogs  AuditLog[]
+
+  @@map("organizations")
+}
+
+model Region {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  code           String
+  countryCode    String       @default("IN")
+  currencyCode   String       @default("INR")
+  timezone       String       @default("Asia/Kolkata")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  schools        School[]
+
+  @@unique([organizationId, code])
+  @@map("regions")
+}
+
+model School {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  regionId       String
+  region         Region       @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  name           String
+  code           String       @unique
+  affiliationNo  String?
+  boardType      String       @default("CBSE") // CBSE, ICSE, IB, CAMBRIDGE, STATE_BOARD
+  ownershipType  String       @default("SELF_OWNED") // SELF_OWNED, FRANCHISE, PARTNERSHIP
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  campuses       Campus[]
+  academicYears  AcademicYear[]
+  grades         Grade[]
+
+  @@map("schools")
+}
+
+model Campus {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name           String
+  code           String
+  addressLine1   String?
+  city           String
+  state          String
+  postalCode     String?
+  phone          String?
+  email          String?
+  isPrimary      Boolean      @default(false)
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  userRoles      UserRole[]
+  departments    Department[]
+  employees      Employee[]
+  students       Student[]
+  divisions      Division[]
+  enrollments    Enrollment[]
+  auditLogs      AuditLog[]
+
+  @@unique([schoolId, code])
+  @@map("campuses")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  email          String       @unique
+  phone          String?      @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  avatarUrl      String?
+  status         String       @default("ACTIVE") // ACTIVE, INVITED, SUSPENDED
+  mfaEnabled     Boolean      @default(false)
+  lastLoginAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  userRoles      UserRole[]
+  employee       Employee?
+  guardian       Guardian?
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model Role {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name           String
+  code           String
+  scopeLevel     String       @default("CAMPUS") // ORGANIZATION, REGION, SCHOOL, CAMPUS
+  isSystem       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  userRoles      UserRole[]
+  permissions    RolePermission[]
+
+  @@unique([organizationId, code])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g., 'students:read', 'students:create'
+  module      String   // 'students', 'employees', 'finance', 'academics'
+  action      String   // 'read', 'create', 'update', 'delete', 'manage'
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  campusId  String?
+  campus    Campus?  @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId, campusId])
+  @@map("user_roles")
+}
+
+// ==========================================
+// AUDIT LOG (Immutable Event Store)
+// ==========================================
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  campusId       String?
+  campus         Campus?      @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userRole       String
+  action         String       // 'CREATE', 'UPDATE', 'DELETE', 'VIEW_SENSITIVE'
+  entityName     String       // 'Student', 'Employee', 'Campus', 'UserRole'
+  entityId       String
+  diffBefore     String?      // JSON string snapshot before
+  diffAfter      String?      // JSON string snapshot after
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entityName, entityId])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// MODULE 01: EMPLOYEE & HR CORE
+// ==========================================
+
+model Department {
+  id             String        @id @default(uuid())
+  campusId       String
+  campus         Campus        @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  name           String
+  code           String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  designations   Designation[]
+  employees      Employee[]
+
+  @@unique([campusId, code])
+  @@map("departments")
+}
+
+model Designation {
+  id           String      @id @default(uuid())
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  title        String
+  code         String
+  payGrade     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  employees    Employee[]
+
+  @@unique([departmentId, code])
+  @@map("designations")
+}
+
+model Employee {
+  id              String        @id @default(uuid())
+  campusId        String
+  campus          Campus        @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  userId          String?       @unique
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  departmentId    String
+  department      Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  designationId   String
+  designation     Designation   @relation(fields: [designationId], references: [id], onDelete: Restrict)
+  employeeCode    String        @unique
+  firstName       String
+  lastName        String
+  email           String        @unique
+  phone           String
+  dob             DateTime?
+  gender          String        @default("OTHER")
+  dateOfJoining   DateTime      @default(now())
+  biometricId     String?
+  panNumberMasked String?
+  aadhaarLastFour String?
+  status          String        @default("ACTIVE") // ACTIVE, PROBATION, NOTICE_PERIOD, TERMINATED
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  documents       EmployeeDocument[]
+
+  @@index([campusId, status])
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id           String    @id @default(uuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  documentType String    // RESUME, ID_PROOF, DEGREE, CONTRACT, POLICE_VERIFICATION
+  fileName     String
+  fileUrl      String
+  mimeType     String
+  fileSize     Int
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@map("employee_documents")
+}
+
+// ==========================================
+// MODULE 01: STUDENT & GUARDIAN CORE
+// ==========================================
+
+model AcademicYear {
+  id          String       @id @default(uuid())
+  schoolId    String
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name        String       // e.g. "2026-2027"
+  code        String       // e.g. "AY2627"
+  startDate   DateTime
+  endDate     DateTime
+  isCurrent   Boolean      @default(false)
+  isLocked    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  enrollments Enrollment[]
+
+  @@unique([schoolId, code])
+  @@map("academic_years")
+}
+
+model Grade {
+  id          String       @id @default(uuid())
+  schoolId    String
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name        String       // e.g. "Grade 1", "Grade 6"
+  levelOrder  Int          // 1, 2, 6, 10
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  divisions   Division[]
+  enrollments Enrollment[]
+
+  @@unique([schoolId, levelOrder])
+  @@map("grades")
+}
+
+model Division {
+  id          String       @id @default(uuid())
+  campusId    String
+  campus      Campus       @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  gradeId     String
+  grade       Grade        @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  name        String       // "A", "B", "Rose", "Lotus"
+  capacity    Int          @default(40)
+  roomNumber  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  enrollments Enrollment[]
+
+  @@unique([campusId, gradeId, name])
+  @@map("divisions")
+}
+
+model Student {
+  id                  String            @id @default(uuid())
+  campusId            String
+  campus              Campus            @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  admissionNumber     String            @unique
+  firstName           String
+  lastName            String
+  dob                 DateTime
+  gender              String            // MALE, FEMALE, OTHER
+  bloodGroup          String?           // A+, B+, O+, AB+, etc.
+  aadhaarLastFour     String?           // 4 digits masked
+  emergencyPhone      String
+  medicalNotes        String?
+  status              String            @default("ACTIVE") // ACTIVE, PROMOTED, TRANSFERRED, ALUMNI
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
+
+  guardians           StudentGuardian[]
+  enrollments         Enrollment[]
+  documents           StudentDocument[]
+
+  @@index([campusId, status])
+  @@map("students")
+}
+
+model Guardian {
+  id           String            @id @default(uuid())
+  userId       String?           @unique
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName    String
+  lastName     String
+  relation     String            // FATHER, MOTHER, LEGAL_GUARDIAN
+  phone        String
+  email        String?
+  occupation   String?
+  address      String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  students     StudentGuardian[]
+
+  @@map("guardians")
+}
+
+model StudentGuardian {
+  id                 String   @id @default(uuid())
+  studentId          String
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardianId         String
+  guardian           Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  isPrimary          Boolean  @default(true)
+  isAuthorizedPickup Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  @@unique([studentId, guardianId])
+  @@map("student_guardians")
+}
+
+model Enrollment {
+  id             String       @id @default(uuid())
+  campusId       String
+  campus         Campus       @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  gradeId        String
+  grade          Grade        @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  divisionId     String
+  division       Division     @relation(fields: [divisionId], references: [id], onDelete: Restrict)
+  rollNumber     Int
+  status         String       @default("ENROLLED") // ENROLLED, COMPLETED, TRANSFERRED
+  enrolledAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([divisionId, academicYearId, rollNumber])
+  @@index([campusId, academicYearId, gradeId, divisionId])
+  @@map("enrollments")
+}
+
+model StudentDocument {
+  id           String    @id @default(uuid())
+  studentId    String
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  documentType String    // BIRTH_CERTIFICATE, AADHAAR, TRANSFER_CERTIFICATE, PREVIOUS_MARKSHEET, MEDICAL_RECORD
+  fileName     String
+  fileUrl      String
+  mimeType     String
+  fileSize     Int
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@map("student_documents")
+}

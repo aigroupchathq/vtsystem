@@ -3,37 +3,41 @@
 @layer base {
   :root {
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-display: 'Outfit', sans-serif;
+    --font-display: 'Inter', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
 
-    /* Pure Monochrome Black Palette */
-    --black-canvas: #000000;
-    --black-surface: #0a0a0d;
-    --black-elevated: #111116;
-    --black-card: #14141a;
-    --black-border: #22222a;
-    --black-border-hover: #383844;
+    /* Vedic Tree OS Heritage Palette */
+    --vt-green: #0F4C35;
+    --vt-green-light: #16654A;
+    --vt-green-surface: #0A2E20;
+    --vt-saffron: #F59E0B;
+    --vt-saffron-light: #FBBF24;
     
-    /* Monochrome Platinum Accents */
-    --mono-white: #ffffff;
-    --mono-light: #f4f4f5;
-    --mono-muted: #a1a1aa;
-    --mono-dark: #52525b;
+    /* Modern Slate Neutrals */
+    --bg-canvas: #090D16;
+    --bg-surface: #0F172A;
+    --bg-card: #141E33;
+    --bg-elevated: #1E293B;
+    --border-subtle: #24324D;
+    --border-hover: #3B4D70;
+
+    --text-primary: #F8FAFC;
+    --text-muted: #94A3B8;
+    --text-dim: #64748B;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: var(--black-canvas);
-    color: var(--mono-light);
-    line-height: 1.6;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    line-height: 1.5;
     overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    letter-spacing: -0.025em;
-    font-weight: 700;
-    color: #ffffff;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    color: #FFFFFF;
   }
 
   code, pre, .font-mono {
@@ -43,109 +47,49 @@
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: #090D16;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: #24324D;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #3B4D70;
 }
 
-/* Monochrome VFX Card */
-.mono-card {
-  background: linear-gradient(180deg, rgba(20, 20, 26, 0.75) 0%, rgba(10, 10, 14, 0.95) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+/* Tabular Numerals for Finance & Roll Numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-.mono-card:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-2px);
-  box-shadow: 0 25px 50px -15px rgba(0, 0, 0, 0.9), 0 0 30px -10px rgba(255, 255, 255, 0.08);
+/* Vedic Badge Variants */
+.badge-green {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
-/* Platinum Primary Button */
-.btn-mono-primary {
-  background: #ffffff;
-  color: #000000;
-  font-weight: 700;
-  border-radius: 14px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 0 25px -3px rgba(255, 255, 255, 0.35);
-  min-height: 46px;
+.badge-saffron {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
-.btn-mono-primary:hover {
-  background: #f4f4f5;
-  box-shadow: 0 0 35px -2px rgba(255, 255, 255, 0.6);
-  transform: translateY(-1px) scale(1.01);
+.badge-red {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
-.btn-mono-primary:active {
-  transform: translateY(0) scale(0.99);
-}
-
-/* Secondary Monochrome Button */
-.btn-mono-secondary {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  min-height: 46px;
-}
-
-.btn-mono-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-/* VFX: Shimmer light sweep across containers */
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
-}
-
-.animate-shimmer {
-  position: relative;
-  overflow: hidden;
-}
-
-.animate-shimmer::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
-  animation: shimmer 4s infinite ease-in-out;
-  pointer-events: none;
-}
-
-/* VFX: Glow pulse rings */
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.1); }
-  50% { box-shadow: 0 0 40px rgba(255, 255, 255, 0.25); }
-}
-
-.vfx-glow-pulse {
-  animation: glowPulse 3s infinite ease-in-out;
-}
-
-/* VFX: Beam line */
-.beam-line {
-  background: linear-gradient(90deg, transparent, #ffffff, transparent);
-  height: 1px;
+.badge-slate {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: #94A3B8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
