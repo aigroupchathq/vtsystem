@@ -597,12 +597,49 @@ Module 01 encompasses the foundational core of both the Student Information Syst
 
 ---
 
+## D-017 — Module 02: Attendance, Leave Management & Rule-Driven Policy Engine
+
+**Status:** DECIDED
+**Date Raised:** 2026-10-02
+**Date Decided:** 2026-10-02
+**Blocking:** NO
+
+### Context
+Attendance and Leave management in educational institutions spans both staff (biometric, working hours, leaves, half-days, sandwich rules) and students (roll call, CBSE 75% rule, parent excused absentees). Crucially, institutional policies vary across school boards, regions, and campuses. Hard-coding rules like late grace periods, half-day thresholds, or sandwich leave penalties is strictly forbidden.
+
+### Decision
+1. **Configurable Policy Engine (`AttendancePolicy`)**:
+   - Zero hard-coded operational constants.
+   - All rules (shift start times, late grace period minutes, half-day min working hours, full-day working hours, sandwich leave rule enablement, late-to-half-day threshold, student minimum attendance threshold e.g. 75%) are stored as structured configuration entities scoped by campus.
+   - Dynamic policy evaluator calculates status based on incoming check-in/out timestamps and leave schedules.
+2. **Staff Attendance & Biometric Integration**:
+   - Entities: `StaffAttendance`, `LeaveRequest`, `LeaveBalance`.
+   - Records check-in, check-out, duration, late minutes, status (`PRESENT`, `ABSENT`, `LATE`, `HALF_DAY`, `ON_DUTY`, `LEAVE`).
+   - Leave requests follow stateful approval workflow (`PENDING` -> `APPROVED` / `REJECTED`) with automatic quota deductions and reversals.
+3. **Student Attendance & Academic Eligibility**:
+   - Entities: `StudentAttendance`.
+   - Scoped by campus, academic year, division, and date.
+   - Real-time percentage tracking against regulatory thresholds (e.g. CBSE 75% exam hall ticket eligibility cutoff).
+4. **Sandwich Leave Algorithm**:
+   - Configurable sandwich rule detects leaves spanning across weekends/gazetted holidays.
+   - Automatically computes aggregate deduction when sandwich rule is active.
+5. **Auditing & Tenancy**:
+   - Immutable audit logging for every policy modification, attendance override, and leave status transition.
+   - Strict campus-level tenant isolation.
+
+### Consequences
+- Policies can be customized per school campus without altering codebase logic or restarting servers.
+- Full auditability for HR compliance and statutory CBSE/State Board inspections.
+
+---
+
 ## ADR Change Log
 
 | Date | ID | Change |
 |---|---|---|
 | 2026-10-02 | D-001 to D-015 | Initial decision register created during project audit |
 | 2026-10-02 | D-016 | Module 01 Student + Employee Core Architectural Implementation (DECIDED) |
+| 2026-10-02 | D-017 | Module 02 Attendance, Leave & Configurable Policy Engine (DECIDED) |
 
 ---
 

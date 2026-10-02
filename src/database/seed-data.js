@@ -160,26 +160,44 @@ export const SEED_PERMISSIONS = [
   { id: 'perm-employees-read', code: 'employees:read', module: 'employees', action: 'read' },
   { id: 'perm-employees-create', code: 'employees:create', module: 'employees', action: 'create' },
   { id: 'perm-employees-update', code: 'employees:update', module: 'employees', action: 'update' },
-  { id: 'perm-employees-delete', code: 'employees:delete', module: 'employees', action: 'delete' }
+  { id: 'perm-employees-delete', code: 'employees:delete', module: 'employees', action: 'delete' },
+
+  // Attendance & Policy Engine
+  { id: 'perm-attendance-read', code: 'attendance:read', module: 'attendance', action: 'read' },
+  { id: 'perm-attendance-mark', code: 'attendance:mark', module: 'attendance', action: 'mark' },
+  { id: 'perm-attendance-policy', code: 'attendance:policy_manage', module: 'attendance', action: 'policy_manage' },
+
+  // Leave & Workflow
+  { id: 'perm-leaves-read', code: 'leaves:read', module: 'leaves', action: 'read' },
+  { id: 'perm-leaves-apply', code: 'leaves:apply', module: 'leaves', action: 'apply' },
+  { id: 'perm-leaves-approve', code: 'leaves:approve', module: 'leaves', action: 'approve' }
 ];
 
 export const SEED_ROLE_PERMISSIONS = {
   HQ_ADMIN: [
     'tenant:manage', 'tenant:switch', 'audit:read',
     'students:read', 'students:create', 'students:update', 'students:delete',
-    'employees:read', 'employees:create', 'employees:update', 'employees:delete'
+    'employees:read', 'employees:create', 'employees:update', 'employees:delete',
+    'attendance:read', 'attendance:mark', 'attendance:policy_manage',
+    'leaves:read', 'leaves:apply', 'leaves:approve'
   ],
   PRINCIPAL: [
     'tenant:switch', 'audit:read',
     'students:read', 'students:create', 'students:update',
-    'employees:read', 'employees:create', 'employees:update'
+    'employees:read', 'employees:create', 'employees:update',
+    'attendance:read', 'attendance:mark', 'attendance:policy_manage',
+    'leaves:read', 'leaves:apply', 'leaves:approve'
   ],
   TEACHER: [
     'students:read',
-    'employees:read'
+    'employees:read',
+    'attendance:read', 'attendance:mark',
+    'leaves:read', 'leaves:apply'
   ],
   PARENT: [
-    'students:read'
+    'students:read',
+    'attendance:read',
+    'leaves:apply'
   ]
 };
 
@@ -539,3 +557,293 @@ export const INITIAL_AUDIT_LOGS = [
     createdAt: new Date('2026-03-11T11:30:00Z').toISOString()
   }
 ];
+
+// ==========================================
+// MODULE 02: ATTENDANCE & POLICY SEED DATA
+// ==========================================
+
+export const SEED_ATTENDANCE_POLICIES = [
+  {
+    id: 'pol-pune-baner',
+    campusId: 'cmp-pune-baner',
+    shiftStartTime: '08:00',
+    shiftEndTime: '16:00',
+    gracePeriodMinutes: 15,
+    lateThresholdMinutes: 30,
+    halfDayMinWorkingHours: 4.0,
+    fullDayMinWorkingHours: 7.0,
+    lateDeductionThreshold: 3,
+    isSandwichRuleEnabled: true,
+    sandwichLeaveTypes: 'CASUAL_LEAVE,SICK_LEAVE',
+    minStudentAttendancePct: 75.0,
+    warningStudentAttendancePct: 80.0,
+    createdAt: new Date('2026-01-01T00:00:00Z').toISOString(),
+    updatedAt: new Date('2026-01-01T00:00:00Z').toISOString()
+  },
+  {
+    id: 'pol-pune-kothrud',
+    campusId: 'cmp-pune-kothrud',
+    shiftStartTime: '08:30',
+    shiftEndTime: '16:30',
+    gracePeriodMinutes: 15,
+    lateThresholdMinutes: 30,
+    halfDayMinWorkingHours: 4.0,
+    fullDayMinWorkingHours: 7.0,
+    lateDeductionThreshold: 3,
+    isSandwichRuleEnabled: true,
+    sandwichLeaveTypes: 'CASUAL_LEAVE,SICK_LEAVE',
+    minStudentAttendancePct: 75.0,
+    warningStudentAttendancePct: 80.0,
+    createdAt: new Date('2026-01-01T00:00:00Z').toISOString(),
+    updatedAt: new Date('2026-01-01T00:00:00Z').toISOString()
+  },
+  {
+    id: 'pol-mumbai-bandra',
+    campusId: 'cmp-mumbai-bandra',
+    shiftStartTime: '08:15',
+    shiftEndTime: '16:15',
+    gracePeriodMinutes: 20,
+    lateThresholdMinutes: 35,
+    halfDayMinWorkingHours: 4.0,
+    fullDayMinWorkingHours: 7.0,
+    lateDeductionThreshold: 3,
+    isSandwichRuleEnabled: true,
+    sandwichLeaveTypes: 'CASUAL_LEAVE,SICK_LEAVE',
+    minStudentAttendancePct: 75.0,
+    warningStudentAttendancePct: 80.0,
+    createdAt: new Date('2026-01-01T00:00:00Z').toISOString(),
+    updatedAt: new Date('2026-01-01T00:00:00Z').toISOString()
+  }
+];
+
+export const SEED_HOLIDAYS = [
+  {
+    id: 'hol-1',
+    campusId: 'cmp-pune-baner',
+    name: 'Maharashtra Day',
+    date: '2026-05-01',
+    isGazetted: true,
+    academicYearId: 'ay-2026-2027'
+  },
+  {
+    id: 'hol-2',
+    campusId: 'cmp-pune-baner',
+    name: 'Independence Day',
+    date: '2026-08-15',
+    isGazetted: true,
+    academicYearId: 'ay-2026-2027'
+  },
+  {
+    id: 'hol-3',
+    campusId: 'cmp-pune-baner',
+    name: 'Gandhi Jayanti',
+    date: '2026-10-02',
+    isGazetted: true,
+    academicYearId: 'ay-2026-2027'
+  },
+  {
+    id: 'hol-4',
+    campusId: 'cmp-pune-baner',
+    name: 'Diwali Break',
+    date: '2026-11-09',
+    isGazetted: false,
+    academicYearId: 'ay-2026-2027'
+  }
+];
+
+export const SEED_LEAVE_BALANCES = [
+  {
+    id: 'lb-sunita-cl',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-sunita',
+    academicYearId: 'ay-2026-2027',
+    leaveType: 'CASUAL_LEAVE',
+    allocatedDays: 12.0,
+    usedDays: 2.0,
+    pendingDays: 1.0,
+    remainingDays: 9.0
+  },
+  {
+    id: 'lb-sunita-sl',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-sunita',
+    academicYearId: 'ay-2026-2027',
+    leaveType: 'SICK_LEAVE',
+    allocatedDays: 10.0,
+    usedDays: 1.0,
+    pendingDays: 0.0,
+    remainingDays: 9.0
+  },
+  {
+    id: 'lb-sunita-el',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-sunita',
+    academicYearId: 'ay-2026-2027',
+    leaveType: 'EARNED_LEAVE',
+    allocatedDays: 15.0,
+    usedDays: 0.0,
+    pendingDays: 0.0,
+    remainingDays: 15.0
+  },
+  {
+    id: 'lb-meenakshi-cl',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-principal-meenakshi',
+    academicYearId: 'ay-2026-2027',
+    leaveType: 'CASUAL_LEAVE',
+    allocatedDays: 15.0,
+    usedDays: 1.0,
+    pendingDays: 0.0,
+    remainingDays: 14.0
+  },
+  {
+    id: 'lb-anand-cl',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-anand-hod',
+    academicYearId: 'ay-2026-2027',
+    leaveType: 'CASUAL_LEAVE',
+    allocatedDays: 12.0,
+    usedDays: 0.0,
+    pendingDays: 0.0,
+    remainingDays: 12.0
+  }
+];
+
+export const SEED_LEAVE_REQUESTS = [
+  {
+    id: 'lr-101',
+    campusId: 'cmp-pune-baner',
+    applicantId: 'emp-sunita',
+    applicantType: 'EMPLOYEE',
+    leaveType: 'CASUAL_LEAVE',
+    startDate: '2026-10-08',
+    endDate: '2026-10-08',
+    totalDays: 1.0,
+    isHalfDay: false,
+    isSandwichPenaltyApplied: false,
+    sandwichDaysCount: 0.0,
+    reason: 'Family ceremonial commitment in Kolhapur',
+    status: 'PENDING',
+    approverId: 'usr-principal-baner',
+    approverRole: 'PRINCIPAL',
+    approverRemarks: null,
+    approvedAt: null,
+    createdAt: new Date('2026-10-01T09:00:00Z').toISOString(),
+    updatedAt: new Date('2026-10-01T09:00:00Z').toISOString()
+  },
+  {
+    id: 'lr-102',
+    campusId: 'cmp-pune-baner',
+    applicantId: 'emp-sunita',
+    applicantType: 'EMPLOYEE',
+    leaveType: 'SICK_LEAVE',
+    startDate: '2026-09-15',
+    endDate: '2026-09-15',
+    totalDays: 1.0,
+    isHalfDay: false,
+    isSandwichPenaltyApplied: false,
+    sandwichDaysCount: 0.0,
+    reason: 'Seasonal viral fever',
+    status: 'APPROVED',
+    approverId: 'usr-principal-baner',
+    approverRole: 'PRINCIPAL',
+    approverRemarks: 'Approved with medical certificate verified.',
+    approvedAt: new Date('2026-09-15T10:00:00Z').toISOString(),
+    createdAt: new Date('2026-09-14T18:00:00Z').toISOString(),
+    updatedAt: new Date('2026-09-15T10:00:00Z').toISOString()
+  }
+];
+
+export const SEED_STAFF_ATTENDANCE = [
+  {
+    id: 'sa-1',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-principal-meenakshi',
+    date: '2026-10-02',
+    checkInTime: '2026-10-02T07:48:00Z',
+    checkOutTime: '2026-10-02T16:10:00Z',
+    durationMinutes: 502,
+    lateMinutes: 0,
+    status: 'PRESENT',
+    source: 'BIOMETRIC',
+    remarks: 'Early arrival, campus morning inspection'
+  },
+  {
+    id: 'sa-2',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-sunita',
+    date: '2026-10-02',
+    checkInTime: '2026-10-02T08:22:00Z',
+    checkOutTime: '2026-10-02T16:05:00Z',
+    durationMinutes: 463,
+    lateMinutes: 7, // 8:22 AM vs 8:15 AM grace cutoff
+    status: 'LATE',
+    source: 'BIOMETRIC',
+    remarks: 'Pashan traffic congestion'
+  },
+  {
+    id: 'sa-3',
+    campusId: 'cmp-pune-baner',
+    employeeId: 'emp-anand-hod',
+    date: '2026-10-02',
+    checkInTime: '2026-10-02T07:55:00Z',
+    checkOutTime: '2026-10-02T12:05:00Z',
+    durationMinutes: 250, // 4 hours 10 mins -> Half Day
+    lateMinutes: 0,
+    status: 'HALF_DAY',
+    source: 'BIOMETRIC',
+    remarks: 'Approved afternoon university symposium'
+  }
+];
+
+export const SEED_STUDENT_ATTENDANCE = [
+  {
+    id: 'sta-1',
+    campusId: 'cmp-pune-baner',
+    divisionId: 'div-pune-5a',
+    studentId: 'stu-kabir-deshmukh',
+    academicYearId: 'ay-2026-2027',
+    date: '2026-10-02',
+    periodIndex: 0,
+    status: 'PRESENT',
+    remarks: null,
+    markedBy: 'usr-teacher-patil'
+  },
+  {
+    id: 'sta-2',
+    campusId: 'cmp-pune-baner',
+    divisionId: 'div-pune-5a',
+    studentId: 'stu-aarav-sharma',
+    academicYearId: 'ay-2026-2027',
+    date: '2026-10-02',
+    periodIndex: 0,
+    status: 'ABSENT',
+    remarks: 'Medical leave requested by parent',
+    markedBy: 'usr-teacher-patil'
+  },
+  {
+    id: 'sta-3',
+    campusId: 'cmp-pune-baner',
+    divisionId: 'div-pune-5a',
+    studentId: 'stu-kabir-deshmukh',
+    academicYearId: 'ay-2026-2027',
+    date: '2026-10-01',
+    periodIndex: 0,
+    status: 'PRESENT',
+    remarks: null,
+    markedBy: 'usr-teacher-patil'
+  },
+  {
+    id: 'sta-4',
+    campusId: 'cmp-pune-baner',
+    divisionId: 'div-pune-5a',
+    studentId: 'stu-aarav-sharma',
+    academicYearId: 'ay-2026-2027',
+    date: '2026-10-01',
+    periodIndex: 0,
+    status: 'PRESENT',
+    remarks: null,
+    markedBy: 'usr-teacher-patil'
+  }
+];
+

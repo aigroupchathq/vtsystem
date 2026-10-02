@@ -16,7 +16,13 @@ import {
   SEED_EMPLOYEES,
   SEED_GUARDIANS,
   SEED_STUDENTS,
-  INITIAL_AUDIT_LOGS
+  INITIAL_AUDIT_LOGS,
+  SEED_ATTENDANCE_POLICIES,
+  SEED_HOLIDAYS,
+  SEED_LEAVE_BALANCES,
+  SEED_LEAVE_REQUESTS,
+  SEED_STAFF_ATTENDANCE,
+  SEED_STUDENT_ATTENDANCE
 } from './seed-data.js';
 
 class VedicTreeDatabase {
@@ -42,6 +48,12 @@ class VedicTreeDatabase {
     this.guardians = JSON.parse(JSON.stringify(SEED_GUARDIANS));
     this.students = JSON.parse(JSON.stringify(SEED_STUDENTS));
     this.auditLogs = JSON.parse(JSON.stringify(INITIAL_AUDIT_LOGS));
+    this.attendancePolicies = JSON.parse(JSON.stringify(SEED_ATTENDANCE_POLICIES));
+    this.holidays = JSON.parse(JSON.stringify(SEED_HOLIDAYS));
+    this.leaveBalances = JSON.parse(JSON.stringify(SEED_LEAVE_BALANCES));
+    this.leaveRequests = JSON.parse(JSON.stringify(SEED_LEAVE_REQUESTS));
+    this.staffAttendance = JSON.parse(JSON.stringify(SEED_STAFF_ATTENDANCE));
+    this.studentAttendance = JSON.parse(JSON.stringify(SEED_STUDENT_ATTENDANCE));
   }
 
   // ----------------------------------------------------
@@ -405,6 +417,437 @@ class VedicTreeDatabase {
 
   getAcademicYears(schoolId) {
     return this.academicYears.filter(ay => !schoolId || ay.schoolId === schoolId);
+  }
+
+  // ----------------------------------------------------
+  // MODULE 02: ATTENDANCE POLICIES (DYNAMIC POLICY ENGINE)
+  // ----------------------------------------------------
+  getAttendancePolicy(campusId) {
+    if (!campusId) return null;
+    let policy = this.attendancePolicies.find(p => p.campusId === campusId);
+    if (!policy) {
+      // Create sensible defaults if not yet customized
+      policy = {
+        id: `pol-${campusId}`,
+        campusId,
+        shiftStartTime: '08:00',
+        shiftEndTime: '16:00',
+        gracePeriodMinutes: 15,
+        lateThresholdMinutes: 30,
+        halfDayMinWorkingHours: 4.0,
+        fullDayMinWorkingHours: 7.0,
+        lateDeductionThreshold: 3,
+        isSandwichRuleEnabled: true,
+        sandwichLeaveTypes: 'CASUAL_LEAVE,SICK_LEAVE',
+        minStudentAttendancePct: 75.0,
+        warningStudentAttendancePct: 80.0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      this.attendancePolicies.push(policy);
+    }
+    return { ...policy };
+  }
+
+  updateAttendancePolicy(context, campusId, updates) {
+    const { userRole, campusId: userCampus } = context || {};
+    if (userRole !== 'HQ_ADMIN' && userCampus && userCampus !== campusId) {
+      const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot update attendance policy for foreign campus ${campusId}.`);
+      err.code = 'TENANT_ISOLATION_VIOLATION';
+      err.status = 403;
+      throw err;
+    }
+
+    const index = this.attendancePolicies.findIndex(p => p.campusId === campusId);
+    let current = index >= 0 ? this.attendancePolicies[index] : this.getAttendancePolicy(campusId);
+    const before = { ...current };
+
+    const updated = {
+      ...current,
+      ...updates,
+      campusId, // Immutable
+      updatedAt: new Date().toISOString()
+    };
+
+    if (index >= 0) {
+      this.attendancePolicies[index] = updated;
+    } else {
+      this.attendancePolicies.push(updated);
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'UPDATE_POLICY',
+      entityName: 'AttendancePolicy',
+      entityId: updated.id,
+      diffBefore: before,
+      diffAfter: updated
+    });
+
+    return { ...updated };
+  }
+
+  // ----------------------------------------------------
+  // MODULE 02: STAFF ATTENDANCE
+  // ----------------------------------------------------
+  getStaffAttendance(context, filters = {}) {
+    const { campusId, userRole } = context || {};
+    let list = [...this.staffAttendance];
+
+    const targetCampus = filters.campusId || campusId;
+    if (targetCampus && userRole !== 'HQ_ADMIN') {
+      list = list.filter(a => a.campusId === targetCampus);
+    } else if (filters.campusId) {
+      list = list.filter(a => a.campusId === filters.campusId);
+    }
+
+    if (filters.date) {
+      list = list.filter(a => a.date === filters.date);
+    }
+    if (filters.employeeId) {
+      list = list.filter(a => a.employeeId === filters.employeeId);
+    }
+    if (filters.status) {
+      list = list.filter(a => a.status === filters.status);
+    }
+
+    return list.map(item => {
+      const emp = this.employees.find(e => e.id === item.employeeId);
+      const dept = emp ? this.departments.find(d => d.id === emp.departmentId) : null;
+      const des = emp ? this.designations.find(d => d.id === emp.designationId) : null;
+      return {
+        ...item,
+        employeeName: emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown Staff',
+        employeeCode: emp ? emp.employeeCode : 'N/A',
+        departmentName: dept ? dept.name : 'General',
+        designationTitle: des ? des.title : 'Staff'
+      };
+    });
+  }
+
+  recordStaffAttendance(context, data) {
+    const campusId = data.campusId || context.campusId;
+    if (context.userRole !== 'HQ_ADMIN' && context.campusId && context.campusId !== campusId) {
+      const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot record staff attendance in foreign campus ${campusId}.`);
+      err.code = 'TENANT_ISOLATION_VIOLATION';
+      err.status = 403;
+      throw err;
+    }
+
+    const existingIndex = this.staffAttendance.findIndex(
+      a => a.employeeId === data.employeeId && a.date === data.date
+    );
+
+    let record = null;
+    let diffBefore = null;
+
+    if (existingIndex >= 0) {
+      diffBefore = { ...this.staffAttendance[existingIndex] };
+      this.staffAttendance[existingIndex] = {
+        ...this.staffAttendance[existingIndex],
+        ...data,
+        campusId,
+        updatedAt: new Date().toISOString()
+      };
+      record = this.staffAttendance[existingIndex];
+    } else {
+      record = {
+        id: `sa-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        campusId,
+        employeeId: data.employeeId,
+        date: data.date,
+        checkInTime: data.checkInTime || null,
+        checkOutTime: data.checkOutTime || null,
+        durationMinutes: data.durationMinutes || 0,
+        lateMinutes: data.lateMinutes || 0,
+        status: data.status || 'PRESENT',
+        source: data.source || 'MANUAL',
+        remarks: data.remarks || null,
+        verifiedBy: context.userId || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      this.staffAttendance.unshift(record);
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: existingIndex >= 0 ? 'UPDATE' : 'CREATE',
+      entityName: 'StaffAttendance',
+      entityId: record.id,
+      diffBefore,
+      diffAfter: record
+    });
+
+    return { ...record };
+  }
+
+  // ----------------------------------------------------
+  // MODULE 02: STUDENT ATTENDANCE
+  // ----------------------------------------------------
+  getStudentAttendance(context, filters = {}) {
+    const { campusId, userRole } = context || {};
+    let list = [...this.studentAttendance];
+
+    const targetCampus = filters.campusId || campusId;
+    if (targetCampus && userRole !== 'HQ_ADMIN') {
+      list = list.filter(a => a.campusId === targetCampus);
+    } else if (filters.campusId) {
+      list = list.filter(a => a.campusId === filters.campusId);
+    }
+
+    if (filters.divisionId) {
+      list = list.filter(a => a.divisionId === filters.divisionId);
+    }
+    if (filters.date) {
+      list = list.filter(a => a.date === filters.date);
+    }
+    if (filters.studentId) {
+      list = list.filter(a => a.studentId === filters.studentId);
+    }
+    if (filters.status) {
+      list = list.filter(a => a.status === filters.status);
+    }
+
+    return list.map(item => {
+      const student = this.students.find(s => s.id === item.studentId);
+      return {
+        ...item,
+        studentName: student ? `${student.firstName} ${student.lastName}` : 'Student',
+        admissionNumber: student ? student.admissionNumber : 'N/A',
+        rollNumber: student?.enrollment?.rollNumber || null
+      };
+    });
+  }
+
+  markStudentAttendanceBatch(context, { divisionId, date, records, markedBy }) {
+    const division = this.divisions.find(d => d.id === divisionId);
+    if (!division) {
+      throw new Error(`DIVISION_NOT_FOUND: Division ${divisionId} does not exist.`);
+    }
+
+    const campusId = division.campusId;
+    if (context.userRole !== 'HQ_ADMIN' && context.campusId && context.campusId !== campusId) {
+      const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot mark student attendance in foreign campus ${campusId}.`);
+      err.code = 'TENANT_ISOLATION_VIOLATION';
+      err.status = 403;
+      throw err;
+    }
+
+    let markedCount = 0;
+    const academicYearId = 'ay-2026-2027';
+
+    for (const r of records) {
+      const existingIndex = this.studentAttendance.findIndex(
+        a => a.divisionId === divisionId && a.studentId === r.studentId && a.date === date
+      );
+
+      if (existingIndex >= 0) {
+        this.studentAttendance[existingIndex] = {
+          ...this.studentAttendance[existingIndex],
+          status: r.status,
+          remarks: r.remarks || null,
+          markedBy: markedBy || context.userId,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        this.studentAttendance.unshift({
+          id: `sta-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          campusId,
+          divisionId,
+          studentId: r.studentId,
+          academicYearId,
+          date,
+          periodIndex: 0,
+          status: r.status || 'PRESENT',
+          remarks: r.remarks || null,
+          markedBy: markedBy || context.userId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      markedCount++;
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'BATCH_ATTENDANCE',
+      entityName: 'StudentAttendance',
+      entityId: divisionId,
+      diffBefore: null,
+      diffAfter: { divisionId, date, studentCount: markedCount }
+    });
+
+    return { success: true, count: markedCount, date, divisionId };
+  }
+
+  // ----------------------------------------------------
+  // MODULE 02: LEAVE & LEAVE BALANCES
+  // ----------------------------------------------------
+  getLeaveBalances(context, employeeId) {
+    let list = [...this.leaveBalances];
+    if (employeeId) {
+      list = list.filter(lb => lb.employeeId === employeeId);
+    }
+    return list;
+  }
+
+  getLeaveRequests(context, filters = {}) {
+    const { campusId, userRole } = context || {};
+    let list = [...this.leaveRequests];
+
+    const targetCampus = filters.campusId || campusId;
+    if (targetCampus && userRole !== 'HQ_ADMIN') {
+      list = list.filter(r => r.campusId === targetCampus);
+    } else if (filters.campusId) {
+      list = list.filter(r => r.campusId === filters.campusId);
+    }
+
+    if (filters.status) {
+      list = list.filter(r => r.status === filters.status);
+    }
+    if (filters.applicantId) {
+      list = list.filter(r => r.applicantId === filters.applicantId);
+    }
+
+    return list.map(req => {
+      const emp = this.employees.find(e => e.id === req.applicantId);
+      const student = !emp ? this.students.find(s => s.id === req.applicantId) : null;
+      return {
+        ...req,
+        applicantName: emp ? `${emp.firstName} ${emp.lastName}` : (student ? `${student.firstName} ${student.lastName}` : 'Applicant'),
+        applicantCode: emp ? emp.employeeCode : (student ? student.admissionNumber : 'N/A')
+      };
+    });
+  }
+
+  createLeaveRequest(context, data) {
+    const campusId = data.campusId || context.campusId;
+    if (context.userRole !== 'HQ_ADMIN' && context.campusId && context.campusId !== campusId) {
+      const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot submit leave for foreign campus ${campusId}.`);
+      err.code = 'TENANT_ISOLATION_VIOLATION';
+      err.status = 403;
+      throw err;
+    }
+
+    const id = `lr-${Date.now()}`;
+    const newRequest = {
+      id,
+      campusId,
+      applicantId: data.applicantId,
+      applicantType: data.applicantType || 'EMPLOYEE',
+      leaveType: data.leaveType || 'CASUAL_LEAVE',
+      startDate: data.startDate,
+      endDate: data.endDate,
+      totalDays: Number(data.totalDays) || 1.0,
+      isHalfDay: Boolean(data.isHalfDay),
+      isSandwichPenaltyApplied: Boolean(data.isSandwichPenaltyApplied),
+      sandwichDaysCount: Number(data.sandwichDaysCount) || 0,
+      reason: data.reason,
+      status: 'PENDING',
+      approverId: null,
+      approverRole: null,
+      approverRemarks: null,
+      approvedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.leaveRequests.unshift(newRequest);
+
+    // Update pending days in balance if employee
+    if (newRequest.applicantType === 'EMPLOYEE') {
+      const balance = this.leaveBalances.find(
+        b => b.employeeId === newRequest.applicantId && b.leaveType === newRequest.leaveType
+      );
+      if (balance) {
+        balance.pendingDays += newRequest.totalDays;
+        balance.remainingDays = Math.max(0, balance.allocatedDays - balance.usedDays - balance.pendingDays);
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'APPLY_LEAVE',
+      entityName: 'LeaveRequest',
+      entityId: id,
+      diffBefore: null,
+      diffAfter: newRequest
+    });
+
+    return { ...newRequest };
+  }
+
+  updateLeaveRequestStatus(context, requestId, { status, approverRemarks, approverId, approverRole }) {
+    const request = this.leaveRequests.find(r => r.id === requestId);
+    if (!request) {
+      const err = new Error(`NOT_FOUND: Leave request ${requestId} does not exist.`);
+      err.code = 'LEAVE_NOT_FOUND';
+      err.status = 404;
+      throw err;
+    }
+
+    if (context.userRole !== 'HQ_ADMIN' && context.campusId && context.campusId !== request.campusId) {
+      const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot approve leave for foreign campus ${request.campusId}.`);
+      err.code = 'TENANT_ISOLATION_VIOLATION';
+      err.status = 403;
+      throw err;
+    }
+
+    const before = { ...request };
+    request.status = status;
+    request.approverId = approverId || context.userId;
+    request.approverRole = approverRole || context.userRole;
+    request.approverRemarks = approverRemarks || null;
+    request.approvedAt = new Date().toISOString();
+    request.updatedAt = new Date().toISOString();
+
+    // Adjust leave balance
+    if (request.applicantType === 'EMPLOYEE') {
+      const balance = this.leaveBalances.find(
+        b => b.employeeId === request.applicantId && b.leaveType === request.leaveType
+      );
+      if (balance) {
+        if (status === 'APPROVED') {
+          balance.pendingDays = Math.max(0, balance.pendingDays - request.totalDays);
+          balance.usedDays += request.totalDays;
+          balance.remainingDays = Math.max(0, balance.allocatedDays - balance.usedDays - balance.pendingDays);
+        } else if (status === 'REJECTED' || status === 'CANCELLED') {
+          balance.pendingDays = Math.max(0, balance.pendingDays - request.totalDays);
+          balance.remainingDays = Math.max(0, balance.allocatedDays - balance.usedDays - balance.pendingDays);
+        }
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: request.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: status === 'APPROVED' ? 'APPROVE_LEAVE' : 'REJECT_LEAVE',
+      entityName: 'LeaveRequest',
+      entityId: request.id,
+      diffBefore: before,
+      diffAfter: request
+    });
+
+    return { ...request };
+  }
+
+  getHolidays(campusId, academicYearId) {
+    return this.holidays.filter(h => (!campusId || h.campusId === campusId) && (!academicYearId || h.academicYearId === academicYearId));
   }
 }
 

@@ -2,13 +2,10 @@ import React from 'react';
 import { 
   GraduationCap, 
   Users, 
-  Layers, 
+  CalendarCheck,
   ShieldCheck, 
   History, 
-  Building, 
-  ChevronRight,
-  Sparkles,
-  LayoutDashboard
+  Building
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -35,6 +32,13 @@ export default function Sidebar({
           subtitle: 'Directory & Biometrics',
           icon: Users,
           badge: 'M-01'
+        },
+        {
+          id: 'attendance',
+          label: 'Attendance & Leaves',
+          subtitle: 'Daily Roster & Policy Engine',
+          icon: CalendarCheck,
+          badge: 'M-02'
         }
       ]
     },

@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.js",
     "test:unit": "node --test tests/unit.test.js",
-    "test:integration": "node --test tests/platform.test.js tests/module01-core.test.js",
+    "test:integration": "node --test tests/platform.test.js tests/module01-core.test.js tests/module02-attendance.test.js",
+    "test:module01": "node --test tests/module01-core.test.js",
+    "test:module02": "node --test tests/module02-attendance.test.js",
     "test:e2e": "node --test tests/e2e.test.js",
     "preview": "vite preview"
   },

@@ -467,3 +467,121 @@ model StudentDocument {
 
   @@map("student_documents")
 }
+
+// ==========================================
+// MODULE 02: ATTENDANCE, LEAVE & POLICY ENGINE
+// ==========================================
+
+model AttendancePolicy {
+  id                         String   @id @default(uuid())
+  campusId                   String   @unique
+  shiftStartTime             String   @default("08:00") // 24-hr format
+  shiftEndTime               String   @default("16:00")
+  gracePeriodMinutes         Int      @default(15)      // 15 mins after shift start
+  lateThresholdMinutes       Int      @default(30)      // > 30 mins counted as late
+  halfDayMinWorkingHours     Float    @default(4.0)     // minimum hours for half day
+  fullDayMinWorkingHours     Float    @default(7.0)     // minimum hours for full day
+  lateDeductionThreshold     Int      @default(3)       // 3 lates = 1 deduction
+  isSandwichRuleEnabled      Boolean  @default(true)    // Sandwich leave rule active
+  sandwichLeaveTypes         String   @default("CASUAL_LEAVE,SICK_LEAVE")
+  minStudentAttendancePct    Float    @default(75.0)    // Mandatory CBSE/Board cutoff
+  warningStudentAttendancePct Float   @default(80.0)    // Early warning cutoff
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@map("attendance_policies")
+}
+
+model StaffAttendance {
+  id              String    @id @default(uuid())
+  campusId        String
+  employeeId      String
+  date            DateTime
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  durationMinutes Int?
+  lateMinutes     Int       @default(0)
+  status          String    // PRESENT, ABSENT, LATE, HALF_DAY, ON_DUTY, LEAVE
+  source          String    @default("BIOMETRIC") // BIOMETRIC, MANUAL, WEB, MOBILE
+  remarks         String?
+  verifiedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([campusId, date, status])
+  @@map("staff_attendance")
+}
+
+model StudentAttendance {
+  id             String   @id @default(uuid())
+  campusId       String
+  divisionId     String
+  studentId      String
+  academicYearId String
+  date           DateTime
+  periodIndex    Int      @default(0) // 0 = Full Day / Daily Homeroom, 1..8 = Period
+  status         String   // PRESENT, ABSENT, LATE, HALF_DAY, EXCUSED_ABSENT
+  remarks        String?
+  markedBy       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([divisionId, studentId, date, periodIndex])
+  @@index([campusId, divisionId, date])
+  @@map("student_attendance")
+}
+
+model LeaveBalance {
+  id             String   @id @default(uuid())
+  campusId       String
+  employeeId     String
+  academicYearId String
+  leaveType      String   // CASUAL_LEAVE, SICK_LEAVE, EARNED_LEAVE, MATERNITY_LEAVE, UNPAID_LEAVE
+  allocatedDays  Float    @default(12.0)
+  usedDays       Float    @default(0.0)
+  pendingDays    Float    @default(0.0)
+  remainingDays  Float    @default(12.0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([employeeId, academicYearId, leaveType])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id                       String    @id @default(uuid())
+  campusId                 String
+  applicantId              String    // employeeId or studentId
+  applicantType            String    @default("EMPLOYEE") // EMPLOYEE, STUDENT
+  leaveType                String    // CASUAL_LEAVE, SICK_LEAVE, EARNED_LEAVE, MATERNITY_LEAVE, UNPAID_LEAVE
+  startDate                DateTime
+  endDate                  DateTime
+  totalDays                Float
+  isHalfDay                Boolean   @default(false)
+  isSandwichPenaltyApplied Boolean   @default(false)
+  sandwichDaysCount        Float     @default(0.0)
+  reason                   String
+  status                   String    @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  approverId               String?
+  approverRole             String?
+  approverRemarks          String?
+  approvedAt               DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([campusId, applicantId, status])
+  @@map("leave_requests")
+}
+
+model Holiday {
+  id             String   @id @default(uuid())
+  campusId       String
+  name           String
+  date           DateTime
+  isGazetted     Boolean  @default(true)
+  academicYearId String
+  createdAt      DateTime @default(now())
+
+  @@unique([campusId, date])
+  @@map("holidays")
+}

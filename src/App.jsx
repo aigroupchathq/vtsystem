@@ -10,6 +10,9 @@ import StudentProfileModal from './components/sis/StudentProfileModal.jsx';
 import EmployeesDirectory from './components/hrms/EmployeesDirectory.jsx';
 import EmployeeOnboardModal from './components/hrms/EmployeeOnboardModal.jsx';
 import EmployeeProfileModal from './components/hrms/EmployeeProfileModal.jsx';
+import AttendanceHub from './components/attendance/AttendanceHub.jsx';
+import ApplyLeaveModal from './components/attendance/ApplyLeaveModal.jsx';
+import StaffCheckInModal from './components/attendance/StaffCheckInModal.jsx';
 import TenantHierarchyView from './components/platform/TenantHierarchyView.jsx';
 import RbacMatrixView from './components/platform/RbacMatrixView.jsx';
 import AuditLogsView from './components/platform/AuditLogsView.jsx';
@@ -29,6 +32,8 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
+  const [isApplyLeaveModalOpen, setIsApplyLeaveModalOpen] = useState(false);
+  const [isPunchModalOpen, setIsPunchModalOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
@@ -118,6 +123,16 @@ export default function App() {
             />
           )}
 
+          {activeNav === 'attendance' && (
+            <AttendanceHub
+              tenantContext={activeTenantContext}
+              currentUser={session.user}
+              onOpenApplyLeaveModal={() => setIsApplyLeaveModalOpen(true)}
+              onOpenPunchModal={() => setIsPunchModalOpen(true)}
+              onShowToast={showToast}
+            />
+          )}
+
           {activeNav === 'hierarchy' && (
             <TenantHierarchyView
               tenantContext={session.tenantContext}
@@ -187,6 +202,21 @@ export default function App() {
         onClose={() => setSelectedEmployeeId(null)}
         employeeId={selectedEmployeeId}
         tenantContext={activeTenantContext}
+      />
+
+      <ApplyLeaveModal
+        isOpen={isApplyLeaveModalOpen}
+        onClose={() => setIsApplyLeaveModalOpen(false)}
+        tenantContext={activeTenantContext}
+        currentUser={session.user}
+        onSuccess={(req) => showToast(`Leave request ${req.id} submitted for approval!`)}
+      />
+
+      <StaffCheckInModal
+        isOpen={isPunchModalOpen}
+        onClose={() => setIsPunchModalOpen(false)}
+        tenantContext={activeTenantContext}
+        onSuccess={(rec) => showToast(`Punch recorded: ${rec.status}`)}
       />
     </div>
   );
