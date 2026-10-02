@@ -1,4 +1,4 @@
-﻿# VEDIC TREE OS — Architecture Decision Register (ADR)
+# VEDIC TREE OS — Architecture Decision Register (ADR)
 
 > **Maintained by:** Principal Engineering Agent (Antigravity)
 > **Format:** Each decision record includes: ID, Title, Status, Context, Options Considered, Recommendation, Decision, and Consequences.
@@ -567,11 +567,42 @@ Branch naming convention:
 
 ---
 
+## D-016 — Module 01: Student + Employee Core Architectural Implementation
+
+**Status:** DECIDED
+**Date Raised:** 2026-10-02
+**Date Decided:** 2026-10-02
+**Blocking:** NO
+
+### Context
+Module 01 encompasses the foundational core of both the Student Information System (SIS) and Human Resources Management System (HRMS). This module establishes the operational baseline for all subsequent academic, fee, and administrative features.
+
+### Decision
+1. **Student Core**:
+   - Entities: `Student`, `Guardian`, `StudentGuardian`, `Enrollment`, `StudentDocument`.
+   - Admissions: Multi-step guided wizard validating guardian relationships and section capacity.
+   - Student 360 profile explorer displaying the 5 Universal Orientation answers.
+2. **Employee Core**:
+   - Entities: `Employee`, `Department`, `Designation`, `EmployeeDocument`.
+   - Onboarding: Service book record with biometric device ID mapping and department allocation.
+3. **Data Integrity & Security**:
+   - Dual-layer tenant isolation: Application layer guards + database schema foreign key boundaries.
+   - Unique constraints on Admission Numbers (`admission_number`) and Employee Codes (`employee_code`).
+   - Immutable audit logging with JSON diff snapshots on all mutations.
+4. **UI State Adherence**:
+   - Explicit implementation of all 11 design system states across directories and forms.
+
+### Consequences
+- All subsequent modules (Academics, Fee Invoicing, Attendance) consume these standard student and employee identifiers without altering core schema structures.
+
+---
+
 ## ADR Change Log
 
 | Date | ID | Change |
 |---|---|---|
 | 2026-10-02 | D-001 to D-015 | Initial decision register created during project audit |
+| 2026-10-02 | D-016 | Module 01 Student + Employee Core Architectural Implementation (DECIDED) |
 
 ---
 

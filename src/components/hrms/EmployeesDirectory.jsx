@@ -152,12 +152,13 @@ export default function EmployeesDirectory({
                 <th className="py-3 px-4">Campus</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4">Service Docs</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-xs">
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-slate-400">
+                  <td colSpan="8" className="py-12 text-center text-slate-400">
                     <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-3 text-slate-500">
                       <Users className="w-6 h-6" />
                     </div>
@@ -207,6 +208,16 @@ export default function EmployeesDirectory({
                         <FileCheck className="w-3.5 h-3.5 text-blue-400" />
                         {emp.documents?.length || 0} files
                       </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => onSelectEmployee && onSelectEmployee(emp)}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors inline-flex items-center gap-1.5 text-[11px]"
+                        title="View Employee Profile"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        <span>View</span>
+                      </button>
                     </td>
                   </tr>
                 ))

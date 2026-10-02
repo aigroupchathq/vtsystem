@@ -9,6 +9,7 @@ import StudentAdmissionModal from './components/sis/StudentAdmissionModal.jsx';
 import StudentProfileModal from './components/sis/StudentProfileModal.jsx';
 import EmployeesDirectory from './components/hrms/EmployeesDirectory.jsx';
 import EmployeeOnboardModal from './components/hrms/EmployeeOnboardModal.jsx';
+import EmployeeProfileModal from './components/hrms/EmployeeProfileModal.jsx';
 import TenantHierarchyView from './components/platform/TenantHierarchyView.jsx';
 import RbacMatrixView from './components/platform/RbacMatrixView.jsx';
 import AuditLogsView from './components/platform/AuditLogsView.jsx';
@@ -29,6 +30,7 @@ export default function App() {
   const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -112,7 +114,7 @@ export default function App() {
               tenantContext={activeTenantContext}
               currentUser={session.user}
               onOpenOnboardModal={() => setIsOnboardModalOpen(true)}
-              onSelectEmployee={() => {}}
+              onSelectEmployee={(emp) => setSelectedEmployeeId(emp.id)}
             />
           )}
 
@@ -178,6 +180,13 @@ export default function App() {
         onOnboardSuccess={(newEmp) => {
           showToast(`Staff member ${newEmp.employeeCode} onboarded successfully!`);
         }}
+      />
+
+      <EmployeeProfileModal
+        isOpen={Boolean(selectedEmployeeId)}
+        onClose={() => setSelectedEmployeeId(null)}
+        employeeId={selectedEmployeeId}
+        tenantContext={activeTenantContext}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Users, Briefcase, AlertCircle, Fingerprint, Mail, Phone } from 'lucide-react';
+import { X, Users, AlertCircle, Fingerprint } from 'lucide-react';
 import { EmployeesService } from '../../modules/hrms/employees.service.js';
 import { db } from '../../database/db.js';
 
@@ -10,7 +10,7 @@ export default function EmployeeOnboardModal({
   onOnboardSuccess
 }) {
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     employeeCode: `VT-EMP-${Math.floor(100 + Math.random() * 900)}`,
     firstName: '',
     lastName: '',
@@ -20,7 +20,7 @@ export default function EmployeeOnboardModal({
     departmentId: 'dept-acad',
     designationId: 'des-sr-teacher',
     biometricId: `BIO-${Math.floor(1000 + Math.random() * 9000)}`
-  });
+  }));
 
   if (!isOpen) return null;
 

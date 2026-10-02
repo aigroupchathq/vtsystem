@@ -23,7 +23,7 @@ export default function StudentAdmissionModal({
   const [error, setError] = useState('');
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     // Step 1: Student Bio
     admissionNumber: `VT-2026-${Math.floor(100 + Math.random() * 900)}`,
     firstName: '',
@@ -52,7 +52,7 @@ export default function StudentAdmissionModal({
     hasBirthCert: true,
     hasAadhaar: true,
     hasTransferCert: false
-  });
+  }));
 
   if (!isOpen) return null;
 
