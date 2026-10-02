@@ -585,3 +585,207 @@ model Holiday {
   @@unique([campusId, date])
   @@map("holidays")
 }
+
+// ==========================================
+// MODULE 03: ADMISSIONS CRM
+// ==========================================
+
+model Lead {
+  id                  String    @id @default(uuid())
+  campusId            String
+  studentName         String
+  guardianName        String
+  phone               String
+  email               String?
+  targetGrade         String
+  leadSource          String    // WALK_IN, WEBSITE, WHATSAPP, REFERRAL, EVENT, SOCIAL_MEDIA
+  stage               String    @default("LEAD") // LEAD, ENQUIRY, COUNSELLING, VISIT, APPLICATION, ASSESSMENT, OFFER, ADMISSION, FEE, STUDENT, ENROLLED, LOST
+  assignedCounselorId String?
+  priority            String    @default("MEDIUM") // HIGH, MEDIUM, LOW
+  notes               String?
+  tags                String?   // Comma-separated or JSON
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  @@index([campusId, stage])
+  @@index([campusId, phone])
+  @@map("leads")
+}
+
+model LeadTimeline {
+  id          String   @id @default(uuid())
+  leadId      String
+  campusId    String
+  eventType   String   // NOTE, CALL, STATUS_CHANGE, STAGE_TRANSITION, VISIT_SCHEDULED, VISIT_COMPLETED, WHATSAPP_SENT, APPLICATION_SUBMITTED, ASSESSMENT_EVALUATED, OFFER_ISSUED, ADMISSION_CONFIRMED, FEE_PAID
+  title       String
+  description String?
+  metadata    String?  // JSON string
+  authorId    String
+  authorName  String?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@map("lead_timeline")
+}
+
+model LeadFollowUp {
+  id          String    @id @default(uuid())
+  leadId      String
+  campusId    String
+  counselorId String
+  title       String
+  dueDate     DateTime
+  type        String    @default("CALL") // CALL, EMAIL, MEETING, VISIT
+  status      String    @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  remarks     String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([campusId, counselorId, status])
+  @@map("lead_follow_ups")
+}
+
+model CampusVisit {
+  id              String    @id @default(uuid())
+  leadId          String
+  campusId        String
+  visitorName     String
+  phone           String
+  scheduledAt     DateTime
+  visitorCount    Int       @default(2)
+  assignedStaffId String?
+  guideName       String?
+  status          String    @default("SCHEDULED") // SCHEDULED, COMPLETED, NO_SHOW, RESCHEDULED
+  feedback        String?
+  rating          Int?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([campusId, scheduledAt, status])
+  @@map("campus_visits")
+}
+
+model Application {
+  id                String    @id @default(uuid())
+  campusId          String
+  leadId            String?
+  applicationNumber String    @unique
+  academicYearId    String
+  gradeId           String
+  submissionDate    DateTime  @default(now())
+  status            String    @default("SUBMITTED") // DRAFT, SUBMITTED, UNDER_REVIEW, SHORTLISTED, REJECTED, ACCEPTED
+  candidateDob      DateTime?
+  candidateGender   String?   // MALE, FEMALE, OTHER
+  previousSchool    String?
+  siblingInfo       String?
+  emergencyPhone    String?
+  address           String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  @@index([campusId, status])
+  @@map("applications")
+}
+
+model ApplicationDocument {
+  id                 String    @id @default(uuid())
+  applicationId      String
+  campusId           String
+  documentType       String    // BIRTH_CERTIFICATE, PREVIOUS_REPORT_CARD, AADHAAR, TRANSFER_CERTIFICATE, PASSPORT_PHOTO
+  fileName           String
+  fileUrl            String
+  verificationStatus String    @default("PENDING") // PENDING, VERIFIED, REJECTED
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  remarks            String?
+  createdAt          DateTime  @default(now())
+
+  @@index([applicationId, documentType])
+  @@map("application_documents")
+}
+
+model EntranceAssessment {
+  id             String    @id @default(uuid())
+  applicationId  String
+  leadId         String?
+  campusId       String
+  assessmentDate DateTime
+  evaluatorId    String
+  evaluatorName  String?
+  subjectsJson   String    // JSON string array of {subject, maxMarks, marks}
+  totalMarks     Float
+  maxMarks       Float
+  percentage     Float
+  remarks        String?
+  result         String    @default("RECOMMENDED") // RECOMMENDED, PROVISIONAL, NOT_RECOMMENDED, WAIVED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([applicationId])
+  @@map("entrance_assessments")
+}
+
+model AdmissionOffer {
+  id             String    @id @default(uuid())
+  applicationId  String
+  leadId         String?
+  campusId       String
+  offerNumber    String    @unique
+  validUntil     DateTime
+  offeredGradeId String
+  feeStructureId String?
+  terms          String?
+  status         String    @default("ISSUED") // ISSUED, ACCEPTED, DECLINED, EXPIRED
+  issuedBy       String
+  issuedAt       DateTime  @default(now())
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([campusId, status])
+  @@map("admission_offers")
+}
+
+model AdmissionRecord {
+  id               String    @id @default(uuid())
+  applicationId    String    @unique
+  leadId           String?
+  campusId         String
+  admissionNumber  String    @unique
+  admissionDate    DateTime  @default(now())
+  admissionFeePaid Float     @default(0.0)
+  feeReceiptNumber String?
+  paymentMethod    String?   // UPI, CARD, NETBANKING, CASH, CHEQUE
+  status           String    @default("CONFIRMED") // CONFIRMED, PROVISIONAL, CANCELLED
+  studentId        String?   // Linked Student from Module 01 Core!
+  admittedBy       String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([campusId, admissionNumber])
+  @@map("admissions")
+}
+
+model CommunicationLog {
+  id                String    @id @default(uuid())
+  campusId          String
+  leadId            String?
+  recipientPhone    String
+  recipientName     String
+  channel           String    @default("WHATSAPP") // WHATSAPP, SMS, EMAIL
+  provider          String    // MOCK, META_CLOUD, TWILIO
+  templateId        String?
+  messageContent    String
+  status            String    @default("SENT") // QUEUED, SENT, DELIVERED, READ, FAILED
+  providerMessageId String?
+  errorMessage      String?
+  sentAt            DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([campusId, leadId])
+  @@map("communication_logs")
+}
+

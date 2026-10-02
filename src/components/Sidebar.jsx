@@ -3,6 +3,7 @@ import {
   GraduationCap, 
   Users, 
   CalendarCheck,
+  UserPlus,
   ShieldCheck, 
   History, 
   Building
@@ -19,6 +20,13 @@ export default function Sidebar({
     {
       group: 'PRIMARY MODULES',
       items: [
+        {
+          id: 'admissions',
+          label: 'Admissions CRM',
+          subtitle: '10-Stage Funnel & WhatsApp',
+          icon: UserPlus,
+          badge: 'M-03'
+        },
         {
           id: 'students',
           label: 'Students (SIS Core)',

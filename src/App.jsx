@@ -13,6 +13,12 @@ import EmployeeProfileModal from './components/hrms/EmployeeProfileModal.jsx';
 import AttendanceHub from './components/attendance/AttendanceHub.jsx';
 import ApplyLeaveModal from './components/attendance/ApplyLeaveModal.jsx';
 import StaffCheckInModal from './components/attendance/StaffCheckInModal.jsx';
+import AdmissionsHub from './components/admissions/AdmissionsHub.jsx';
+import NewLeadModal from './components/admissions/NewLeadModal.jsx';
+import ScheduleVisitModal from './components/admissions/ScheduleVisitModal.jsx';
+import AssessmentModal from './components/admissions/AssessmentModal.jsx';
+import ConvertStudentModal from './components/admissions/ConvertStudentModal.jsx';
+import LeadDetailModal from './components/admissions/LeadDetailModal.jsx';
 import TenantHierarchyView from './components/platform/TenantHierarchyView.jsx';
 import RbacMatrixView from './components/platform/RbacMatrixView.jsx';
 import AuditLogsView from './components/platform/AuditLogsView.jsx';
@@ -34,6 +40,16 @@ export default function App() {
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [isApplyLeaveModalOpen, setIsApplyLeaveModalOpen] = useState(false);
   const [isPunchModalOpen, setIsPunchModalOpen] = useState(false);
+  const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
+  const [isScheduleVisitModalOpen, setIsScheduleVisitModalOpen] = useState(false);
+  const [selectedVisitLead, setSelectedVisitLead] = useState(null);
+  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
+  const [selectedAssessmentLead, setSelectedAssessmentLead] = useState(null);
+  const [selectedAssessmentApp, setSelectedAssessmentApp] = useState(null);
+  const [isConvertStudentModalOpen, setIsConvertStudentModalOpen] = useState(false);
+  const [selectedConvertLead, setSelectedConvertLead] = useState(null);
+  const [selectedConvertApp, setSelectedConvertApp] = useState(null);
+  const [selectedDetailLeadId, setSelectedDetailLeadId] = useState(null);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
@@ -105,6 +121,30 @@ export default function App() {
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+          {activeNav === 'admissions' && (
+            <AdmissionsHub
+              tenantContext={activeTenantContext}
+              currentUser={session.user}
+              onOpenNewLeadModal={() => setIsNewLeadModalOpen(true)}
+              onOpenScheduleVisitModal={(lead) => {
+                setSelectedVisitLead(lead);
+                setIsScheduleVisitModalOpen(true);
+              }}
+              onOpenAssessmentModal={(lead, app) => {
+                setSelectedAssessmentLead(lead);
+                setSelectedAssessmentApp(app);
+                setIsAssessmentModalOpen(true);
+              }}
+              onOpenConvertStudentModal={(lead, app) => {
+                setSelectedConvertLead(lead);
+                setSelectedConvertApp(app);
+                setIsConvertStudentModalOpen(true);
+              }}
+              onOpenLeadDetailModal={(leadId) => setSelectedDetailLeadId(leadId)}
+              onShowToast={showToast}
+            />
+          )}
+
           {activeNav === 'students' && (
             <StudentsDirectory
               tenantContext={activeTenantContext}
@@ -217,6 +257,78 @@ export default function App() {
         onClose={() => setIsPunchModalOpen(false)}
         tenantContext={activeTenantContext}
         onSuccess={(rec) => showToast(`Punch recorded: ${rec.status}`)}
+      />
+
+      {/* Module 03 Admissions Modals */}
+      <NewLeadModal
+        isOpen={isNewLeadModalOpen}
+        onClose={() => setIsNewLeadModalOpen(false)}
+        tenantContext={activeTenantContext}
+        onSuccess={() => showToast('New admission lead added to pipeline!')}
+        onShowToast={showToast}
+      />
+
+      <ScheduleVisitModal
+        isOpen={isScheduleVisitModalOpen}
+        onClose={() => {
+          setIsScheduleVisitModalOpen(false);
+          setSelectedVisitLead(null);
+        }}
+        tenantContext={activeTenantContext}
+        lead={selectedVisitLead}
+        onSuccess={() => showToast('Campus tour scheduled!')}
+        onShowToast={showToast}
+      />
+
+      <AssessmentModal
+        isOpen={isAssessmentModalOpen}
+        onClose={() => {
+          setIsAssessmentModalOpen(false);
+          setSelectedAssessmentLead(null);
+          setSelectedAssessmentApp(null);
+        }}
+        tenantContext={activeTenantContext}
+        lead={selectedAssessmentLead}
+        application={selectedAssessmentApp}
+        onSuccess={() => showToast('Entrance evaluation recorded!')}
+        onShowToast={showToast}
+      />
+
+      <ConvertStudentModal
+        isOpen={isConvertStudentModalOpen}
+        onClose={() => {
+          setIsConvertStudentModalOpen(false);
+          setSelectedConvertLead(null);
+          setSelectedConvertApp(null);
+        }}
+        tenantContext={activeTenantContext}
+        lead={selectedConvertLead}
+        application={selectedConvertApp}
+        onSuccess={() => showToast('Candidate officially enrolled into Student Core!')}
+        onShowToast={showToast}
+      />
+
+      <LeadDetailModal
+        isOpen={Boolean(selectedDetailLeadId)}
+        onClose={() => setSelectedDetailLeadId(null)}
+        tenantContext={activeTenantContext}
+        leadId={selectedDetailLeadId}
+        onOpenScheduleVisit={(lead) => {
+          setSelectedVisitLead(lead);
+          setIsScheduleVisitModalOpen(true);
+        }}
+        onOpenAssessment={(lead, app) => {
+          setSelectedAssessmentLead(lead);
+          setSelectedAssessmentApp(app);
+          setIsAssessmentModalOpen(true);
+        }}
+        onOpenConvertStudent={(lead, app) => {
+          setSelectedConvertLead(lead);
+          setSelectedConvertApp(app);
+          setIsConvertStudentModalOpen(true);
+        }}
+        onShowToast={showToast}
+        onRefresh={() => {}}
       />
     </div>
   );

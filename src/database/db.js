@@ -22,7 +22,18 @@ import {
   SEED_LEAVE_BALANCES,
   SEED_LEAVE_REQUESTS,
   SEED_STAFF_ATTENDANCE,
-  SEED_STUDENT_ATTENDANCE
+  SEED_STUDENT_ATTENDANCE,
+  SEED_LEADS,
+  SEED_LEAD_TIMELINES,
+  SEED_LEAD_FOLLOW_UPS,
+  SEED_CAMPUS_VISITS,
+  SEED_APPLICATIONS,
+  SEED_APPLICATION_DOCUMENTS,
+  SEED_ENTRANCE_ASSESSMENTS,
+  SEED_ADMISSION_OFFERS,
+  SEED_ADMISSION_RECORDS,
+  SEED_COMMUNICATION_LOGS,
+  WHATSAPP_TEMPLATES
 } from './seed-data.js';
 
 class VedicTreeDatabase {
@@ -54,6 +65,17 @@ class VedicTreeDatabase {
     this.leaveRequests = JSON.parse(JSON.stringify(SEED_LEAVE_REQUESTS));
     this.staffAttendance = JSON.parse(JSON.stringify(SEED_STAFF_ATTENDANCE));
     this.studentAttendance = JSON.parse(JSON.stringify(SEED_STUDENT_ATTENDANCE));
+    this.leads = JSON.parse(JSON.stringify(SEED_LEADS));
+    this.leadTimelines = JSON.parse(JSON.stringify(SEED_LEAD_TIMELINES));
+    this.leadFollowUps = JSON.parse(JSON.stringify(SEED_LEAD_FOLLOW_UPS));
+    this.campusVisits = JSON.parse(JSON.stringify(SEED_CAMPUS_VISITS));
+    this.applications = JSON.parse(JSON.stringify(SEED_APPLICATIONS));
+    this.applicationDocuments = JSON.parse(JSON.stringify(SEED_APPLICATION_DOCUMENTS));
+    this.entranceAssessments = JSON.parse(JSON.stringify(SEED_ENTRANCE_ASSESSMENTS));
+    this.admissionOffers = JSON.parse(JSON.stringify(SEED_ADMISSION_OFFERS));
+    this.admissionRecords = JSON.parse(JSON.stringify(SEED_ADMISSION_RECORDS));
+    this.communicationLogs = JSON.parse(JSON.stringify(SEED_COMMUNICATION_LOGS));
+    this.whatsappTemplates = JSON.parse(JSON.stringify(WHATSAPP_TEMPLATES));
   }
 
   // ----------------------------------------------------
@@ -848,6 +870,789 @@ class VedicTreeDatabase {
 
   getHolidays(campusId, academicYearId) {
     return this.holidays.filter(h => (!campusId || h.campusId === campusId) && (!academicYearId || h.academicYearId === academicYearId));
+  }
+
+  // ----------------------------------------------------
+  // MODULE 03: ADMISSIONS CRM OPERATIONS
+  // ----------------------------------------------------
+
+  getLeads(context, filters = {}) {
+    let result = this.leads;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(l => l.campusId === activeCampusId);
+    } else if (filters.campusId) {
+      result = result.filter(l => l.campusId === filters.campusId);
+    }
+
+    if (filters.stage) {
+      result = result.filter(l => l.stage === filters.stage);
+    }
+    if (filters.leadSource) {
+      result = result.filter(l => l.leadSource === filters.leadSource);
+    }
+    if (filters.assignedCounselorId) {
+      result = result.filter(l => l.assignedCounselorId === filters.assignedCounselorId);
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      result = result.filter(l => 
+        l.studentName.toLowerCase().includes(q) || 
+        l.guardianName.toLowerCase().includes(q) || 
+        l.phone.includes(q)
+      );
+    }
+    return result;
+  }
+
+  getLeadById(context, leadId) {
+    const lead = this.leads.find(l => l.id === leadId);
+    if (!lead) return null;
+
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      if (lead.campusId !== activeCampusId) {
+        const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot access lead ${leadId} belonging to another campus.`);
+        err.code = 'TENANT_ISOLATION_VIOLATION';
+        err.status = 403;
+        throw err;
+      }
+    }
+    return { ...lead };
+  }
+
+  createLead(context, leadData) {
+    const targetCampusId = leadData.campusId || context.campusId || context.activeCampusId;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      if (targetCampusId && targetCampusId !== activeCampusId) {
+        const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot create lead in foreign campus ${targetCampusId}.`);
+        err.code = 'TENANT_ISOLATION_VIOLATION';
+        err.status = 403;
+        throw err;
+      }
+    }
+
+    const newLead = {
+      id: `lead-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      campusId: targetCampusId,
+      studentName: leadData.studentName,
+      guardianName: leadData.guardianName,
+      phone: leadData.phone,
+      email: leadData.email || null,
+      targetGrade: leadData.targetGrade,
+      leadSource: leadData.leadSource || 'WALK_IN',
+      stage: leadData.stage || 'LEAD',
+      assignedCounselorId: leadData.assignedCounselorId || null,
+      priority: leadData.priority || 'MEDIUM',
+      notes: leadData.notes || '',
+      tags: leadData.tags || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.leads.unshift(newLead);
+
+    // Initial timeline event
+    this.addLeadTimelineEvent(context, {
+      leadId: newLead.id,
+      campusId: targetCampusId,
+      eventType: 'STATUS_CHANGE',
+      title: 'Lead Created',
+      description: `New lead registered via ${newLead.leadSource} for ${newLead.targetGrade}.`,
+      metadata: { source: newLead.leadSource, targetGrade: newLead.targetGrade }
+    });
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'CREATE_LEAD',
+      entityName: 'Lead',
+      entityId: newLead.id,
+      diffBefore: null,
+      diffAfter: newLead
+    });
+
+    return { ...newLead };
+  }
+
+  updateLead(context, leadId, updates) {
+    const lead = this.leads.find(l => l.id === leadId);
+    if (!lead) {
+      const err = new Error(`Lead ${leadId} not found.`);
+      err.status = 404;
+      throw err;
+    }
+
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      if (lead.campusId !== activeCampusId) {
+        const err = new Error(`TENANT_ISOLATION_VIOLATION: Cannot modify lead belonging to foreign campus.`);
+        err.code = 'TENANT_ISOLATION_VIOLATION';
+        err.status = 403;
+        throw err;
+      }
+    }
+
+    const before = { ...lead };
+    const oldStage = lead.stage;
+    Object.assign(lead, updates, { updatedAt: new Date().toISOString() });
+
+    // Track stage transition
+    if (updates.stage && updates.stage !== oldStage) {
+      this.addLeadTimelineEvent(context, {
+        leadId: lead.id,
+        campusId: lead.campusId,
+        eventType: 'STAGE_TRANSITION',
+        title: `Stage Changed: ${oldStage} -> ${updates.stage}`,
+        description: updates.stageRemarks || `Admissions pipeline advanced to ${updates.stage}.`,
+        metadata: { fromStage: oldStage, toStage: updates.stage }
+      });
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: lead.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'UPDATE_LEAD',
+      entityName: 'Lead',
+      entityId: lead.id,
+      diffBefore: before,
+      diffAfter: lead
+    });
+
+    return { ...lead };
+  }
+
+  getLeadTimeline(context, leadId) {
+    // Validate lead access
+    this.getLeadById(context, leadId);
+    return this.leadTimelines
+      .filter(t => t.leadId === leadId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  addLeadTimelineEvent(context, eventData) {
+    const entry = {
+      id: `tl-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      leadId: eventData.leadId,
+      campusId: eventData.campusId || context.campusId || context.activeCampusId,
+      eventType: eventData.eventType || 'NOTE',
+      title: eventData.title,
+      description: eventData.description || null,
+      metadata: typeof eventData.metadata === 'object' ? JSON.stringify(eventData.metadata) : (eventData.metadata || null),
+      authorId: context.userId || 'system',
+      authorName: context.userName || context.userRole || 'System',
+      createdAt: new Date().toISOString()
+    };
+    this.leadTimelines.unshift(entry);
+    return entry;
+  }
+
+  getFollowUps(context, filters = {}) {
+    let result = this.leadFollowUps;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(f => f.campusId === activeCampusId);
+    }
+    if (filters.counselorId) {
+      result = result.filter(f => f.counselorId === filters.counselorId);
+    }
+    if (filters.status) {
+      result = result.filter(f => f.status === filters.status);
+    }
+    if (filters.leadId) {
+      result = result.filter(f => f.leadId === filters.leadId);
+    }
+    return result;
+  }
+
+  createFollowUp(context, data) {
+    const targetCampusId = data.campusId || context.campusId || context.activeCampusId;
+    const newFollowUp = {
+      id: `fu-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      leadId: data.leadId,
+      campusId: targetCampusId,
+      counselorId: data.counselorId || context.userId,
+      title: data.title,
+      dueDate: data.dueDate || new Date().toISOString(),
+      type: data.type || 'CALL',
+      status: 'PENDING',
+      remarks: data.remarks || '',
+      completedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.leadFollowUps.unshift(newFollowUp);
+
+    this.addLeadTimelineEvent(context, {
+      leadId: data.leadId,
+      campusId: targetCampusId,
+      eventType: 'NOTE',
+      title: `Follow-up Scheduled: ${newFollowUp.type}`,
+      description: `${newFollowUp.title} due on ${newFollowUp.dueDate}.`,
+      metadata: { followUpId: newFollowUp.id, type: newFollowUp.type }
+    });
+
+    return { ...newFollowUp };
+  }
+
+  updateFollowUp(context, followUpId, updates) {
+    const fu = this.leadFollowUps.find(f => f.id === followUpId);
+    if (!fu) throw new Error(`Follow-up ${followUpId} not found.`);
+
+    Object.assign(fu, updates, { updatedAt: new Date().toISOString() });
+    if (updates.status === 'COMPLETED' && !fu.completedAt) {
+      fu.completedAt = new Date().toISOString();
+      this.addLeadTimelineEvent(context, {
+        leadId: fu.leadId,
+        campusId: fu.campusId,
+        eventType: 'CALL',
+        title: `Follow-up Completed: ${fu.type}`,
+        description: updates.remarks || fu.title,
+        metadata: { followUpId: fu.id }
+      });
+    }
+    return { ...fu };
+  }
+
+  getCampusVisits(context, filters = {}) {
+    let result = this.campusVisits;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(v => v.campusId === activeCampusId);
+    }
+    if (filters.status) {
+      result = result.filter(v => v.status === filters.status);
+    }
+    if (filters.leadId) {
+      result = result.filter(v => v.leadId === filters.leadId);
+    }
+    return result;
+  }
+
+  scheduleCampusVisit(context, visitData) {
+    const targetCampusId = visitData.campusId || context.campusId || context.activeCampusId;
+    const newVisit = {
+      id: `vis-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      leadId: visitData.leadId,
+      campusId: targetCampusId,
+      visitorName: visitData.visitorName,
+      phone: visitData.phone,
+      scheduledAt: visitData.scheduledAt,
+      visitorCount: Number(visitData.visitorCount) || 2,
+      assignedStaffId: visitData.assignedStaffId || null,
+      guideName: visitData.guideName || 'Admissions Desk',
+      status: 'SCHEDULED',
+      feedback: null,
+      rating: null,
+      completedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.campusVisits.unshift(newVisit);
+
+    // If associated with a lead, update stage to VISIT and log timeline
+    if (visitData.leadId) {
+      const lead = this.leads.find(l => l.id === visitData.leadId);
+      if (lead) {
+        lead.stage = 'VISIT';
+        lead.updatedAt = new Date().toISOString();
+        this.addLeadTimelineEvent(context, {
+          leadId: lead.id,
+          campusId: targetCampusId,
+          eventType: 'VISIT_SCHEDULED',
+          title: 'Campus Tour Scheduled',
+          description: `Campus visit booked for ${newVisit.visitorName} (${newVisit.visitorCount} guests) on ${newVisit.scheduledAt}.`,
+          metadata: { visitId: newVisit.id, scheduledAt: newVisit.scheduledAt }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'SCHEDULE_CAMPUS_VISIT',
+      entityName: 'CampusVisit',
+      entityId: newVisit.id,
+      diffBefore: null,
+      diffAfter: newVisit
+    });
+
+    return { ...newVisit };
+  }
+
+  updateCampusVisit(context, visitId, updates) {
+    const visit = this.campusVisits.find(v => v.id === visitId);
+    if (!visit) throw new Error(`Campus visit ${visitId} not found.`);
+
+    const before = { ...visit };
+    Object.assign(visit, updates, { updatedAt: new Date().toISOString() });
+
+    if (updates.status === 'COMPLETED') {
+      visit.completedAt = new Date().toISOString();
+      if (visit.leadId) {
+        this.addLeadTimelineEvent(context, {
+          leadId: visit.leadId,
+          campusId: visit.campusId,
+          eventType: 'VISIT_COMPLETED',
+          title: 'Campus Tour Completed',
+          description: visit.feedback || 'Family completed campus exploration walk.',
+          metadata: { rating: visit.rating }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: visit.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'UPDATE_CAMPUS_VISIT',
+      entityName: 'CampusVisit',
+      entityId: visit.id,
+      diffBefore: before,
+      diffAfter: visit
+    });
+
+    return { ...visit };
+  }
+
+  getApplications(context, filters = {}) {
+    let result = this.applications;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(a => a.campusId === activeCampusId);
+    }
+    if (filters.status) {
+      result = result.filter(a => a.status === filters.status);
+    }
+    if (filters.leadId) {
+      result = result.filter(a => a.leadId === filters.leadId);
+    }
+    return result;
+  }
+
+  getApplicationById(context, applicationId) {
+    const app = this.applications.find(a => a.id === applicationId);
+    if (!app) return null;
+    return { ...app };
+  }
+
+  createApplication(context, appData) {
+    const targetCampusId = appData.campusId || context.campusId || context.activeCampusId;
+    const year = new Date().getFullYear();
+    const appNumber = appData.applicationNumber || `APP-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newApp = {
+      id: `app-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      campusId: targetCampusId,
+      leadId: appData.leadId || null,
+      applicationNumber: appNumber,
+      academicYearId: appData.academicYearId || 'ay-2026-2027',
+      gradeId: appData.gradeId || 'grd-5',
+      submissionDate: new Date().toISOString(),
+      status: appData.status || 'SUBMITTED',
+      candidateDob: appData.candidateDob || null,
+      candidateGender: appData.candidateGender || 'MALE',
+      previousSchool: appData.previousSchool || '',
+      siblingInfo: appData.siblingInfo || '',
+      emergencyPhone: appData.emergencyPhone || '',
+      address: appData.address || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.applications.unshift(newApp);
+
+    if (appData.leadId) {
+      const lead = this.leads.find(l => l.id === appData.leadId);
+      if (lead) {
+        lead.stage = 'APPLICATION';
+        lead.updatedAt = new Date().toISOString();
+        this.addLeadTimelineEvent(context, {
+          leadId: lead.id,
+          campusId: targetCampusId,
+          eventType: 'APPLICATION_SUBMITTED',
+          title: `Application Registered: ${appNumber}`,
+          description: `Formal application filed for Grade ${appData.targetGrade || newApp.gradeId}.`,
+          metadata: { applicationId: newApp.id, applicationNumber: appNumber }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'CREATE_APPLICATION',
+      entityName: 'Application',
+      entityId: newApp.id,
+      diffBefore: null,
+      diffAfter: newApp
+    });
+
+    return { ...newApp };
+  }
+
+  updateApplication(context, applicationId, updates) {
+    const app = this.applications.find(a => a.id === applicationId);
+    if (!app) throw new Error(`Application ${applicationId} not found.`);
+
+    const before = { ...app };
+    Object.assign(app, updates, { updatedAt: new Date().toISOString() });
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: app.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'UPDATE_APPLICATION',
+      entityName: 'Application',
+      entityId: app.id,
+      diffBefore: before,
+      diffAfter: app
+    });
+
+    return { ...app };
+  }
+
+  getApplicationDocuments(context, applicationId) {
+    return this.applicationDocuments.filter(d => d.applicationId === applicationId);
+  }
+
+  addApplicationDocument(context, docData) {
+    const newDoc = {
+      id: `app-doc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      applicationId: docData.applicationId,
+      campusId: docData.campusId || context.campusId || context.activeCampusId,
+      documentType: docData.documentType,
+      fileName: docData.fileName,
+      fileUrl: docData.fileUrl || `https://vault.vedictree.edu.in/docs/${docData.fileName}`,
+      verificationStatus: 'PENDING',
+      verifiedBy: null,
+      verifiedAt: null,
+      remarks: null,
+      createdAt: new Date().toISOString()
+    };
+    this.applicationDocuments.push(newDoc);
+    return { ...newDoc };
+  }
+
+  verifyApplicationDocument(context, docId, status, remarks) {
+    const doc = this.applicationDocuments.find(d => d.id === docId);
+    if (!doc) throw new Error(`Application document ${docId} not found.`);
+
+    const before = { ...doc };
+    doc.verificationStatus = status; // VERIFIED, REJECTED
+    doc.verifiedBy = context.userId;
+    doc.verifiedAt = new Date().toISOString();
+    doc.remarks = remarks || null;
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: doc.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: status === 'VERIFIED' ? 'VERIFY_DOCUMENT' : 'REJECT_DOCUMENT',
+      entityName: 'ApplicationDocument',
+      entityId: doc.id,
+      diffBefore: before,
+      diffAfter: doc
+    });
+
+    return { ...doc };
+  }
+
+  getEntranceAssessments(context, applicationId) {
+    return this.entranceAssessments.filter(a => !applicationId || a.applicationId === applicationId);
+  }
+
+  recordEntranceAssessment(context, data) {
+    const targetCampusId = data.campusId || context.campusId || context.activeCampusId;
+    const subjects = typeof data.subjectsJson === 'string' ? JSON.parse(data.subjectsJson) : (data.subjects || []);
+    
+    let totalMarks = 0;
+    let maxMarks = 0;
+    for (const sub of subjects) {
+      totalMarks += Number(sub.marks) || 0;
+      maxMarks += Number(sub.maxMarks) || 0;
+    }
+    const percentage = maxMarks > 0 ? Number(((totalMarks / maxMarks) * 100).toFixed(1)) : 0;
+
+    const newAssessment = {
+      id: `asmt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      applicationId: data.applicationId,
+      leadId: data.leadId || null,
+      campusId: targetCampusId,
+      assessmentDate: data.assessmentDate || new Date().toISOString(),
+      evaluatorId: context.userId || 'evaluator-1',
+      evaluatorName: data.evaluatorName || context.userName || 'Faculty Evaluator',
+      subjectsJson: JSON.stringify(subjects),
+      totalMarks,
+      maxMarks,
+      percentage,
+      remarks: data.remarks || '',
+      result: data.result || (percentage >= 50 ? 'RECOMMENDED' : 'PROVISIONAL'),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.entranceAssessments.unshift(newAssessment);
+
+    if (data.leadId) {
+      const lead = this.leads.find(l => l.id === data.leadId);
+      if (lead) {
+        lead.stage = 'ASSESSMENT';
+        lead.updatedAt = new Date().toISOString();
+        this.addLeadTimelineEvent(context, {
+          leadId: lead.id,
+          campusId: targetCampusId,
+          eventType: 'ASSESSMENT_EVALUATED',
+          title: `Assessment Completed: ${newAssessment.result}`,
+          description: `Score: ${totalMarks}/${maxMarks} (${percentage}%). ${newAssessment.remarks}`,
+          metadata: { totalMarks, maxMarks, percentage, result: newAssessment.result }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'RECORD_ASSESSMENT',
+      entityName: 'EntranceAssessment',
+      entityId: newAssessment.id,
+      diffBefore: null,
+      diffAfter: newAssessment
+    });
+
+    return { ...newAssessment };
+  }
+
+  getAdmissionOffers(context, filters = {}) {
+    let result = this.admissionOffers;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(o => o.campusId === activeCampusId);
+    }
+    if (filters.status) {
+      result = result.filter(o => o.status === filters.status);
+    }
+    return result;
+  }
+
+  issueAdmissionOffer(context, data) {
+    const targetCampusId = data.campusId || context.campusId || context.activeCampusId;
+    const year = new Date().getFullYear();
+    const offerNumber = `OFR-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newOffer = {
+      id: `ofr-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      applicationId: data.applicationId,
+      leadId: data.leadId || null,
+      campusId: targetCampusId,
+      offerNumber,
+      validUntil: data.validUntil || new Date(Date.now() + 14 * 86400000).toISOString(),
+      offeredGradeId: data.offeredGradeId || 'grd-5',
+      feeStructureId: data.feeStructureId || 'fs-standard',
+      terms: data.terms || 'Seat reserved subject to fee payment before expiry.',
+      status: 'ISSUED',
+      issuedBy: context.userId,
+      issuedAt: new Date().toISOString(),
+      acceptedAt: null,
+      createdAt: new Date().toISOString()
+    };
+
+    this.admissionOffers.unshift(newOffer);
+
+    if (data.leadId) {
+      const lead = this.leads.find(l => l.id === data.leadId);
+      if (lead) {
+        lead.stage = 'OFFER';
+        lead.updatedAt = new Date().toISOString();
+        this.addLeadTimelineEvent(context, {
+          leadId: lead.id,
+          campusId: targetCampusId,
+          eventType: 'OFFER_ISSUED',
+          title: `Admission Offer Issued: ${offerNumber}`,
+          description: `Formal seat offer granted for Grade ${newOffer.offeredGradeId}. Valid until ${newOffer.validUntil.split('T')[0]}.`,
+          metadata: { offerId: newOffer.id, offerNumber }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'ISSUE_ADMISSION_OFFER',
+      entityName: 'AdmissionOffer',
+      entityId: newOffer.id,
+      diffBefore: null,
+      diffAfter: newOffer
+    });
+
+    return { ...newOffer };
+  }
+
+  updateAdmissionOfferStatus(context, offerId, status) {
+    const offer = this.admissionOffers.find(o => o.id === offerId);
+    if (!offer) throw new Error(`Admission offer ${offerId} not found.`);
+
+    const before = { ...offer };
+    offer.status = status;
+    if (status === 'ACCEPTED') {
+      offer.acceptedAt = new Date().toISOString();
+      if (offer.leadId) {
+        const lead = this.leads.find(l => l.id === offer.leadId);
+        if (lead) {
+          lead.stage = 'ADMISSION';
+          lead.updatedAt = new Date().toISOString();
+        }
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: offer.campusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'UPDATE_ADMISSION_OFFER',
+      entityName: 'AdmissionOffer',
+      entityId: offer.id,
+      diffBefore: before,
+      diffAfter: offer
+    });
+
+    return { ...offer };
+  }
+
+  getAdmissionRecords(context, filters = {}) {
+    let result = this.admissionRecords;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(a => a.campusId === activeCampusId);
+    }
+    return result;
+  }
+
+  confirmAdmissionAndPayFee(context, data) {
+    const targetCampusId = data.campusId || context.campusId || context.activeCampusId;
+    const year = new Date().getFullYear();
+    const admissionNo = data.admissionNumber || `VT-${year}-${Math.floor(100 + Math.random() * 900)}`;
+    const receiptNo = `RCP-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newRecord = {
+      id: `adm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      applicationId: data.applicationId,
+      leadId: data.leadId || null,
+      campusId: targetCampusId,
+      admissionNumber: admissionNo,
+      admissionDate: new Date().toISOString(),
+      admissionFeePaid: Number(data.admissionFeePaid) || 25000.0,
+      feeReceiptNumber: receiptNo,
+      paymentMethod: data.paymentMethod || 'UPI',
+      status: 'CONFIRMED',
+      studentId: data.studentId || null, // Linked student created in Student Core
+      admittedBy: context.userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.admissionRecords.unshift(newRecord);
+
+    if (data.leadId) {
+      const lead = this.leads.find(l => l.id === data.leadId);
+      if (lead) {
+        lead.stage = 'STUDENT';
+        lead.updatedAt = new Date().toISOString();
+        this.addLeadTimelineEvent(context, {
+          leadId: lead.id,
+          campusId: targetCampusId,
+          eventType: 'ADMISSION_CONFIRMED',
+          title: `Admission Confirmed: ${admissionNo}`,
+          description: `Fee payment of INR ${newRecord.admissionFeePaid} cleared via ${newRecord.paymentMethod}. Receipt: ${receiptNo}.`,
+          metadata: { admissionNumber: admissionNo, receiptNumber: receiptNo, studentId: data.studentId }
+        });
+      }
+    }
+
+    this.recordAudit({
+      organizationId: context.organizationId || this.organization.id,
+      campusId: targetCampusId,
+      userId: context.userId,
+      userRole: context.userRole,
+      action: 'CONFIRM_ADMISSION',
+      entityName: 'AdmissionRecord',
+      entityId: newRecord.id,
+      diffBefore: null,
+      diffAfter: newRecord
+    });
+
+    return { ...newRecord };
+  }
+
+  getCommunicationLogs(context, filters = {}) {
+    let result = this.communicationLogs;
+    if (context.userRole !== 'HQ_ADMIN') {
+      const activeCampusId = context.campusId || context.activeCampusId;
+      result = result.filter(c => c.campusId === activeCampusId);
+    }
+    if (filters.leadId) {
+      result = result.filter(c => c.leadId === filters.leadId);
+    }
+    if (filters.channel) {
+      result = result.filter(c => c.channel === filters.channel);
+    }
+    return result;
+  }
+
+  logCommunication(context, data) {
+    const targetCampusId = data.campusId || context.campusId || context.activeCampusId;
+    const newComm = {
+      id: `comm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      campusId: targetCampusId,
+      leadId: data.leadId || null,
+      recipientPhone: data.recipientPhone,
+      recipientName: data.recipientName,
+      channel: data.channel || 'WHATSAPP',
+      provider: data.provider || 'MOCK',
+      templateId: data.templateId || null,
+      messageContent: data.messageContent,
+      status: data.status || 'SENT',
+      providerMessageId: data.providerMessageId || `msg-${Date.now()}`,
+      errorMessage: data.errorMessage || null,
+      sentAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    this.communicationLogs.unshift(newComm);
+
+    if (data.leadId) {
+      this.addLeadTimelineEvent(context, {
+        leadId: data.leadId,
+        campusId: targetCampusId,
+        eventType: 'WHATSAPP_SENT',
+        title: `WhatsApp Dispatched: ${data.templateId || 'Direct Message'}`,
+        description: data.messageContent.slice(0, 100) + (data.messageContent.length > 100 ? '...' : ''),
+        metadata: { provider: newComm.provider, providerMessageId: newComm.providerMessageId }
+      });
+    }
+
+    return { ...newComm };
+  }
+
+  getWhatsAppTemplates() {
+    return this.whatsappTemplates;
   }
 }
 
