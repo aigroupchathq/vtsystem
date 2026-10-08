@@ -2,6 +2,8 @@
 
 An institutional education operating system uniting classical Indian educational wisdom with modern multi-tenant enterprise governance.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-aigroupchathq.github.io%2Fvtsystem-0B2F29?style=for-the-badge&logo=github)](https://aigroupchathq.github.io/vtsystem/)
+
 [![Tests](https://img.shields.io/badge/tests-284%20passed-success)](tests/)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)](dist/)
 [![Design System](https://img.shields.io/badge/design%20system-warm%20ivory%20%7C%20deep%20forest-0B2F29)](docs/ui/DESIGN_SYSTEM.md)
