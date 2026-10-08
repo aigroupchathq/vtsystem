@@ -65,7 +65,11 @@ model School {
   code           String       @unique
   affiliationNo  String?
   boardType      String       @default("CBSE") // CBSE, ICSE, IB, CAMBRIDGE, STATE_BOARD
-  ownershipType  String       @default("SELF_OWNED") // SELF_OWNED, FRANCHISE, PARTNERSHIP
+  ownershipType  String       @default("OWNED") // OWNED, PARTNER, FRANCHISE (also legacy: SELF_OWNED, PARTNERSHIP)
+  partnerId      String?
+  partner        Partner?     @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  franchiseId    String?
+  franchise      Franchise?   @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
   status         String       @default("ACTIVE")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -789,3 +793,981 @@ model CommunicationLog {
   @@map("communication_logs")
 }
 
+// ==========================================
+// MODULE 04: FINANCE + FEES CORE
+// ==========================================
+
+model FeeStructure {
+  id             String             @id @default(uuid())
+  campusId       String
+  academicYearId String
+  gradeId        String
+  name           String             // e.g. "Grade 1 Standard Fee AY26-27"
+  code           String             // e.g. "FS-G1-STD"
+  frequency      String             @default("TERM") // ANNUAL, TERM, MONTHLY, ONE_TIME
+  currency       String             @default("INR")  // ISO-4217 code
+  totalAmount    Float              // Computed sum of items
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+
+  items          FeeStructureItem[]
+  assignments    FeeAssignment[]
+
+  @@unique([campusId, academicYearId, gradeId, code])
+  @@map("fee_structures")
+}
+
+model FeeStructureItem {
+  id             String       @id @default(uuid())
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  component      String       // TUITION, TRANSPORT, ADMISSION, EXAMINATION, LAB, LIBRARY, SPORTS, MISC
+  title          String       // e.g. "Annual Tuition Fee"
+  amount         Float        // Amount in base currency units
+  isOptional     Boolean      @default(false)
+  dueDate        DateTime?
+  orderIndex     Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("fee_structure_items")
+}
+
+model FeeAssignment {
+  id             String       @id @default(uuid())
+  campusId       String
+  studentId      String
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Restrict)
+  academicYearId String
+  discountRuleId String?
+  scholarshipId  String?
+  customDiscount Float        @default(0.0)
+  netPayable     Float
+  status         String       @default("ACTIVE") // ACTIVE, WAIVED, CANCELLED
+  assignedAt     DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, feeStructureId, academicYearId])
+  @@index([campusId, studentId])
+  @@map("fee_assignments")
+}
+
+model Invoice {
+  id             String            @id @default(uuid())
+  campusId       String
+  invoiceNumber  String            @unique // e.g. "INV-2026-0001"
+  studentId      String
+  academicYearId String
+  issueDate      DateTime          @default(now())
+  dueDate        DateTime
+  subtotal       Float             // Gross total of line items
+  discountTotal  Float             @default(0.0)
+  lateFeeTotal   Float             @default(0.0)
+  totalAmount    Float             // subtotal - discountTotal + lateFeeTotal
+  paidAmount     Float             @default(0.0)
+  balanceAmount  Float             // totalAmount - paidAmount
+  currency       String            @default("INR") // ISO-4217
+  status         String            @default("UNPAID") // UNPAID, PARTIALLY_PAID, PAID, OVERDUE, VOID
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+
+  lineItems      InvoiceLineItem[]
+  payments       Payment[]
+
+  @@index([campusId, studentId, status])
+  @@index([campusId, dueDate, status])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id                 String    @id @default(uuid())
+  invoiceId          String
+  invoice            Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeStructureItemId String?
+  component          String    // TUITION, TRANSPORT, etc.
+  title              String
+  amount             Float
+  discountAmount     Float     @default(0.0)
+  payableAmount      Float     // amount - discountAmount
+  createdAt          DateTime  @default(now())
+
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id               String    @id @default(uuid())
+  campusId         String
+  paymentNumber    String    @unique // e.g. "PAY-2026-0001"
+  invoiceId        String
+  invoice          Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  studentId        String
+  amount           Float
+  currency         String    @default("INR")
+  method           String    // UPI, CARD, NETBANKING, CASH, CHEQUE, DEMAND_DRAFT, BANK_TRANSFER
+  status           String    @default("SUCCESS") // SUCCESS, PENDING, FAILED, REFUNDED
+  transactionRef   String?   // UPI UTR, Cheque No, Bank Ref
+  gatewayProvider  String    @default("MANUAL") // RAZORPAY, STRIPE, MOCK, MANUAL
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  payerName        String?
+  payerPhone       String?
+  paidAt           DateTime  @default(now())
+  remarks          String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  receipts         Receipt[]
+  refunds          Refund[]
+
+  @@index([campusId, invoiceId, status])
+  @@index([campusId, paymentNumber])
+  @@map("payments")
+}
+
+model Receipt {
+  id             String    @id @default(uuid())
+  campusId       String
+  receiptNumber  String    @unique // e.g. "RCP-2026-0001"
+  paymentId      String
+  payment        Payment   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId      String
+  studentId      String
+  amount         Float
+  currency       String    @default("INR")
+  cashierId      String
+  cashierName    String
+  paymentMethod  String
+  breakdownJson  String    // JSON snapshot of invoice line item settlements
+  issuedAt       DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  @@index([campusId, receiptNumber])
+  @@index([campusId, studentId])
+  @@map("receipts")
+}
+
+model Refund {
+  id              String    @id @default(uuid())
+  campusId        String
+  refundNumber    String    @unique // e.g. "REF-2026-0001"
+  paymentId       String
+  payment         Payment   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId       String
+  amount          Float
+  currency        String    @default("INR")
+  reason          String
+  status          String    @default("PROCESSED") // PROCESSED, PENDING, REJECTED
+  approvedBy      String
+  approverRemarks String?
+  gatewayRefundId String?
+  refundedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  @@index([campusId, paymentId])
+  @@map("refunds")
+}
+
+model DiscountRule {
+  id          String    @id @default(uuid())
+  campusId    String
+  name        String    // e.g. "Second Sibling Concession", "Merit Top 5%"
+  code        String    // e.g. "DISC-SIB-2", "DISC-MERIT-90"
+  type        String    @default("PERCENTAGE") // PERCENTAGE, FIXED_AMOUNT
+  criteria    String    // SIBLING, MERIT, STAFF_WARD, RTE, NEED_BASED
+  value       Float     // e.g. 15.0 for 15%, or 5000.0 for fixed ₹5000
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([campusId, code])
+  @@map("discount_rules")
+}
+
+model Scholarship {
+  id             String    @id @default(uuid())
+  campusId       String
+  studentId      String
+  academicYearId String
+  name           String    // e.g. "Chairman's Merit Endowment"
+  sponsor        String    // e.g. "Vedic Tree Foundation"
+  amount         Float
+  currency       String    @default("INR")
+  status         String    @default("ACTIVE") // ACTIVE, REVOKED, EXPIRED
+  grantedDate    DateTime  @default(now())
+  expiryDate     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([campusId, studentId, status])
+  @@map("scholarships")
+}
+
+model LedgerAccount {
+  id          String   @id @default(uuid())
+  campusId    String
+  code        String   // "1010", "1020", "1030", "2010", "4010", "4090"
+  name        String   // "Cash in Hand", "Bank / Razorpay Clearing", "Student Accounts Receivable", etc.
+  type        String   // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE, CONTRA_REVENUE
+  balance     Float    @default(0.0)
+  currency    String   @default("INR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([campusId, code])
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id              String   @id @default(uuid())
+  campusId        String
+  entryNumber     String   @unique // e.g. "JRN-2026-0001"
+  transactionDate DateTime @default(now())
+  referenceType   String   // INVOICE, PAYMENT, RECEIPT, REFUND, WAIVER
+  referenceId     String   // ID of invoice or payment
+  debitAccountCode  String // Account code debited
+  creditAccountCode String // Account code credited
+  amount          Float
+  currency        String   @default("INR")
+  narration       String
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  @@index([campusId, transactionDate])
+  @@index([campusId, referenceType, referenceId])
+  @@map("ledger_entries")
+}
+
+// ==========================================
+// MODULE 05: COMMUNICATION CENTER
+// ==========================================
+
+model CommunicationTemplate {
+  id            String   @id @default(uuid())
+  tenantId      String
+  channel       String   // WHATSAPP, SMS, EMAIL, PUSH, IN_APP
+  name          String
+  category      String   // TRANSACTIONAL, BROADCAST, ALERT, ACADEMIC, FINANCE
+  subject       String?  // For Email, Push, In-App
+  body          String   // Supports {{variables}}
+  variablesJson String   @default("[]") // Array of variable names
+  status        String   @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, channel, status])
+  @@map("communication_templates")
+}
+
+model CommunicationMessage {
+  id                String    @id @default(uuid())
+  tenantId          String
+  campusId          String
+  channel           String    // WHATSAPP, SMS, EMAIL, PUSH, IN_APP
+  recipientType     String    // STUDENT, GUARDIAN, EMPLOYEE, LEAD, USER
+  recipientId       String
+  recipientName     String
+  recipientAddress  String    // Phone number, Email address, or FCM Token / User ID
+  subject           String?
+  body              String
+  templateId        String?
+  category          String    @default("TRANSACTIONAL") // TRANSACTIONAL, BROADCAST, ALERT
+  priority          String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  status            String    @default("QUEUED") // QUEUED, SCHEDULED, SENDING, SENT, DELIVERED, READ, FAILED
+  failureReason     String?
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  provider          String    // MOCK, META_CLOUD, TWILIO, MSG91, SENDGRID, AWS_SES, FCM, IN_APP
+  externalMessageId String?
+  metadataJson      String?   // JSON object with additional context
+  broadcastId       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId, campusId, channel, status])
+  @@index([recipientId, status])
+  @@index([broadcastId])
+  @@map("communication_messages")
+}
+
+model CommunicationBroadcast {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  campusId           String
+  title              String
+  channelsJson       String    // JSON array of channels e.g. ["WHATSAPP", "SMS"]
+  templateId         String?
+  subject            String?
+  body               String
+  audienceType       String    // ALL_STUDENTS, GRADE, DIVISION, ALL_STAFF, DEPARTMENT, CUSTOM
+  audienceFilterJson String?   // JSON object e.g. {"grade": "Grade 1"}
+  totalRecipients    Int       @default(0)
+  sentCount          Int       @default(0)
+  deliveredCount     Int       @default(0)
+  failedCount        Int       @default(0)
+  status             String    @default("DRAFT") // DRAFT, SCHEDULED, PROCESSING, COMPLETED, CANCELLED
+  scheduledFor       DateTime?
+  executedAt         DateTime?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId, campusId, status])
+  @@map("communication_broadcasts")
+}
+
+model NotificationPreference {
+  id            String   @id @default(uuid())
+  tenantId      String
+  userId        String   // Or Student/Guardian/Staff ID
+  recipientType String   // STUDENT, GUARDIAN, EMPLOYEE
+  channel       String   // WHATSAPP, SMS, EMAIL, PUSH, IN_APP
+  category      String   // FEE_ALERTS, ATTENDANCE_ALERTS, ACADEMIC_NOTICES, CAMPUS_EVENTS, GENERAL_BROADCASTS
+  enabled       Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, userId, channel, category])
+  @@map("notification_preferences")
+}
+
+// ==========================================
+// MODULE 06: ACADEMICS & CCE EVALUATION
+// ==========================================
+
+model Subject {
+  id           String    @id @default(uuid())
+  schoolId     String
+  name         String    // e.g. "Mathematics", "Science", "English"
+  code         String    // e.g. "MATH-01", "SCI-01"
+  isElective   Boolean   @default(false)
+  departmentId String?
+  credits      Int       @default(4)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([schoolId, code])
+  @@map("subjects")
+}
+
+model TeacherAssignment {
+  id             String    @id @default(uuid())
+  campusId       String
+  employeeId     String
+  subjectId      String
+  divisionId     String
+  academicYearId String
+  isClassTeacher Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([campusId, divisionId, subjectId, academicYearId])
+  @@map("teacher_assignments")
+}
+
+model TimetablePeriod {
+  id                   String    @id @default(uuid())
+  campusId             String
+  divisionId           String
+  teacherAssignmentId  String
+  dayOfWeek            String    // MON, TUE, WED, THU, FRI, SAT
+  periodNumber         Int       // 1, 2, 3, 4, 5, 6, 7, 8
+  startTime            String    // "08:30"
+  endTime              String    // "09:15"
+  roomNumber           String?
+  isSubstitution       Boolean   @default(false)
+  substituteEmployeeId String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campusId, divisionId, dayOfWeek, periodNumber])
+  @@map("timetable_periods")
+}
+
+model Lesson {
+  id                  String    @id @default(uuid())
+  campusId            String
+  teacherAssignmentId String
+  title               String    // e.g. "Linear Equations in Two Variables"
+  description         String?
+  chapter             String?   // "Chapter 3"
+  plannedDate         DateTime
+  completedDate       DateTime?
+  status              String    @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED
+  teachingAids        String?   // "Smartboard, Geometry Box, NCERT Exemplar"
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([campusId, teacherAssignmentId, status])
+  @@map("lessons")
+}
+
+model Homework {
+  id             String    @id @default(uuid())
+  campusId       String
+  divisionId     String
+  subjectId      String
+  teacherId      String
+  title          String    // e.g. "Exercise 3.2 Problem Set"
+  description    String?
+  assignedDate   DateTime  @default(now())
+  dueDate        DateTime
+  maxMarks       Float?    @default(10.0)
+  submissionType String    @default("NOTEBOOK") // NOTEBOOK, ONLINE_UPLOAD, WORKSHEET
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([campusId, divisionId, subjectId])
+  @@map("homeworks")
+}
+
+model AssignmentSubmission {
+  id             String    @id @default(uuid())
+  homeworkId     String
+  studentId      String
+  submissionDate DateTime?
+  status         String    @default("PENDING") // PENDING, SUBMITTED, LATE, GRADED
+  marksObtained  Float?
+  feedback       String?
+  gradedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([homeworkId, studentId])
+  @@map("assignment_submissions")
+}
+
+model Assessment {
+  id             String    @id @default(uuid())
+  campusId       String
+  academicYearId String
+  gradeId        String
+  subjectId      String
+  title          String    // e.g. "Periodic Assessment 1 - Term 1"
+  assessmentType String    // FORMATIVE, SUMMATIVE, PERIODIC_TEST, HALF_YEARLY, ANNUAL
+  maxMarks       Float     @default(50.0)
+  passingMarks   Float     @default(17.5)
+  date           DateTime
+  weightage      Float     @default(10.0) // % contribution to term report card
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([campusId, academicYearId, gradeId, subjectId])
+  @@map("assessments")
+}
+
+model Result {
+  id            String    @id @default(uuid())
+  campusId      String
+  assessmentId  String
+  studentId     String
+  marksObtained Float
+  gradeLetter   String    // A1, A2, B1, B2, C1, C2, D, E
+  remarks       String?
+  isAbsent      Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([assessmentId, studentId])
+  @@map("results")
+}
+
+model ReportCard {
+  id                   String    @id @default(uuid())
+  campusId             String
+  studentId            String
+  academicYearId       String
+  term                 String    // "Term 1", "Term 2", "Annual"
+  summaryJson          String    // JSON: subject-wise aggregate marks, attendance, rank
+  overallPercentage    Float
+  overallGrade         String    // A1, A2, B1, etc.
+  attendancePercentage Float?
+  teacherRemarks       String?
+  principalSignedAt    DateTime?
+  publishedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campusId, studentId, academicYearId, term])
+  @@map("report_cards")
+}
+
+// ============================================================================
+// MODULE 08: SCHOOL OPERATIONS & LOGISTICS
+// ============================================================================
+
+model Asset {
+  id                   String    @id @default(uuid())
+  campusId             String
+  assetCode            String    // e.g. "AST-IT-001"
+  name                 String
+  category             String    // IT_HARDWARE, LAB_EQUIPMENT, FURNITURE, ELECTRICAL, VEHICLE, SPORTS
+  serialNumber         String?
+  modelNumber          String?
+  purchaseDate         DateTime
+  purchaseCost         Float
+  currentStatus        String    @default("IN_USE") // IN_USE, IN_STORAGE, UNDER_MAINTENANCE, DECOMMISSIONED
+  locationFacilityId   String?
+  assignedToEmployeeId String?
+  warrantyExpiryDate   DateTime?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campusId, assetCode])
+  @@index([campusId, category, currentStatus])
+  @@map("assets")
+}
+
+model InventoryItem {
+  id              String    @id @default(uuid())
+  campusId        String
+  itemCode        String    // e.g. "INV-STA-001"
+  name            String
+  category        String    // STATIONERY, LAB_CHEMICALS, FIRST_AID, HOUSEKEEPING, UNIFORMS, BOOKS
+  unit            String    // PIECES, BOXES, LITERS, PACKETS, REAMS
+  currentStock    Int       @default(0)
+  minStockLevel   Int       @default(10)
+  reorderQuantity Int       @default(50)
+  unitCost        Float     @default(0.0)
+  storageLocation String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([campusId, itemCode])
+  @@index([campusId, category])
+  @@map("inventory_items")
+}
+
+model StockTransaction {
+  id              String    @id @default(uuid())
+  campusId        String
+  itemId          String
+  type            String    // INWARD, OUTWARD, AUDIT_ADJUSTMENT, RETURN
+  quantity        Int
+  balanceAfter    Int
+  referenceNumber String?
+  issuedTo        String?
+  performedBy     String
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  @@index([campusId, itemId, createdAt])
+  @@map("stock_transactions")
+}
+
+model Vendor {
+  id            String    @id @default(uuid())
+  campusId      String
+  vendorCode    String    // e.g. "VND-001"
+  name          String
+  category      String    // STATIONERY, IT_SOLUTIONS, LAB_EQUIPMENT, FACILITY_MANAGEMENT, TRANSPORT, CATERING
+  contactPerson String
+  phone         String
+  email         String?
+  gstNumber     String?
+  address       String?
+  rating        Float     @default(4.5)
+  status        String    @default("ACTIVE") // ACTIVE, INACTIVE, BLACKLISTED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([campusId, vendorCode])
+  @@index([campusId, category, status])
+  @@map("vendors")
+}
+
+model PurchaseOrder {
+  id                   String    @id @default(uuid())
+  campusId             String
+  poNumber             String    // e.g. "PO-2026-001"
+  vendorId             String
+  orderDate            DateTime
+  expectedDeliveryDate DateTime?
+  itemsJson            String    // JSON array: [{ description, quantity, unitCost, total }]
+  subtotal             Float
+  taxAmount            Float
+  totalAmount          Float
+  status               String    @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, ORDERED, RECEIVED, CANCELLED
+  approvedBy           String?
+  approvedAt           DateTime?
+  receivedAt           DateTime?
+  remarks              String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campusId, poNumber])
+  @@index([campusId, vendorId, status])
+  @@map("purchase_orders")
+}
+
+model Facility {
+  id                 String    @id @default(uuid())
+  campusId           String
+  facilityCode       String    // e.g. "BLD-A-LAB-01"
+  name               String
+  type               String    // CLASSROOM, SCIENCE_LAB, COMPUTER_LAB, LIBRARY, AUDITORIUM, SPORTS_GROUND, CAFETERIA, INFIRMARY
+  building           String
+  floor              String
+  capacity           Int       @default(40)
+  status             String    @default("AVAILABLE") // AVAILABLE, OCCUPIED, MAINTENANCE, RESERVED
+  airConditioned     Boolean   @default(false)
+  projectorAvailable Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([campusId, facilityCode])
+  @@index([campusId, type, status])
+  @@map("facilities")
+}
+
+model FacilityBooking {
+  id         String    @id @default(uuid())
+  campusId   String
+  facilityId String
+  title      String
+  bookedBy   String
+  startTime  DateTime
+  endTime    DateTime
+  status     String    @default("CONFIRMED") // CONFIRMED, CANCELLED
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([campusId, facilityId, startTime])
+  @@map("facility_bookings")
+}
+
+model MaintenanceRequest {
+  id              String    @id @default(uuid())
+  campusId        String
+  ticketNumber    String    // e.g. "MNT-2026-001"
+  facilityId      String?
+  assetId         String?
+  title           String
+  category        String    // PLUMBING, ELECTRICAL, HVAC, CARPENTRY, IT_INFRA, CIVIL
+  priority        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  description     String
+  reportedBy      String
+  assignedTo      String?
+  status          String    @default("LOGGED") // LOGGED, IN_PROGRESS, PENDING_PARTS, RESOLVED, CLOSED
+  estimatedCost   Float?
+  actualCost      Float?
+  resolutionNotes String?
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([campusId, ticketNumber])
+  @@index([campusId, category, status, priority])
+  @@map("maintenance_requests")
+}
+
+model VisitorLog {
+  id            String    @id @default(uuid())
+  campusId      String
+  passNumber    String    // e.g. "VIS-2026-001"
+  visitorName   String
+  phone         String
+  purpose       String    // PARENT_MEETING, VENDOR_VISIT, OFFICIAL_INSPECTION, MAINTENANCE, GUEST_LECTURE
+  personToMeet  String
+  idProofType   String?   // AADHAAR, PAN, DRIVING_LICENSE, VOTER_ID
+  idProofNumber String?
+  checkInTime   DateTime  @default(now())
+  checkOutTime  DateTime?
+  badgeNumber   String?
+  status        String    @default("CHECKED_IN") // CHECKED_IN, CHECKED_OUT, DENIED
+  vehicleNumber String?
+  remarks       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([campusId, passNumber])
+  @@index([campusId, status, checkInTime])
+  @@map("visitor_logs")
+}
+
+model Incident {
+  id                   String    @id @default(uuid())
+  campusId             String
+  incidentNumber       String    // e.g. "INC-2026-001"
+  title                String
+  category             String    // MINOR_INJURY, FIRST_AID, PROPERTY_DAMAGE, FACILITY_HAZARD, BULLYING, HARASSMENT, MEDICAL_EMERGENCY, SAFEGUARDING
+  severity             String    @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  isSensitive          Boolean   @default(false)
+  occurredAt           DateTime
+  location             String
+  reportedBy           String
+  reportedByName       String
+  personsInvolvedJson  String    // JSON array: [{ type, id, name }]
+  description          String
+  immediateActionTaken String?
+  status               String    @default("REPORTED") // REPORTED, UNDER_INVESTIGATION, ACTION_TAKEN, RESOLVED, CLOSED
+  designatedOfficer    String?
+  sensitiveNotes       String?   // Internal safeguarding notes, strictly gated
+  resolutionSummary    String?
+  resolvedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campusId, incidentNumber])
+  @@index([campusId, category, severity, isSensitive])
+  @@map("incidents")
+}
+
+model Complaint {
+  id                String    @id @default(uuid())
+  campusId          String
+  ticketNumber      String    // e.g. "GRV-2026-001"
+  complainantType   String    // PARENT, STUDENT, STAFF, VISITOR
+  complainantName   String
+  contactPhone      String?
+  contactEmail      String?
+  category          String    // ACADEMICS, TRANSPORT, INFRASTRUCTURE, CANTEEN, STAFF_CONDUCT, ADMIN
+  priority          String    @default("MEDIUM") // LOW, MEDIUM, HIGH
+  subject           String
+  description       String
+  status            String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  assignedTo        String?
+  resolutionSummary String?
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([campusId, ticketNumber])
+  @@index([campusId, category, status, priority])
+  @@map("complaints")
+}
+
+model Vehicle {
+  id                 String    @id @default(uuid())
+  campusId           String
+  vehicleNumber      String    // e.g. "MH-12-VT-1001"
+  vehicleType        String    // BUS_40_SEATER, BUS_25_SEATER, VAN_14_SEATER
+  makeModel          String
+  capacity           Int       @default(40)
+  insuranceExpiryDate DateTime?
+  fitnessExpiryDate  DateTime?
+  pucExpiryDate      DateTime?
+  gpsDeviceId        String?
+  status             String    @default("ACTIVE") // ACTIVE, MAINTENANCE, OUT_OF_SERVICE
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([campusId, vehicleNumber])
+  @@index([campusId, status])
+  @@map("vehicles")
+}
+
+model TransportRoute {
+  id                 String    @id @default(uuid())
+  campusId           String
+  routeNumber        String    // e.g. "RTE-BANER-01"
+  routeName          String
+  vehicleId          String?
+  driverName         String
+  driverPhone        String
+  attendantName      String?
+  attendantPhone     String?
+  morningStartTime   String    // "07:15 AM"
+  eveningStartTime   String    // "03:30 PM"
+  stopsJson          String    // JSON array: [{ stopNumber, stopName, pickupTime, dropTime, feeMonthly }]
+  activeStudentsCount Int      @default(0)
+  status             String    @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([campusId, routeNumber])
+  @@index([campusId, status])
+  @@map("transport_routes")
+}
+
+// ==========================================
+// MODULE 10: PARTNER + FRANCHISE PLATFORM
+// ==========================================
+
+model Partner {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique // e.g. "PT-WEST-01"
+  legalName      String
+  tradeName      String
+  type           String    @default("JOINT_VENTURE") // JOINT_VENTURE, STRATEGIC_ACADEMIC, EQUITY_INVESTOR
+  contactPerson  String
+  email          String
+  phone          String
+  panNumber      String?
+  gstin          String?
+  address        String?
+  equitySharePct Float     @default(0.0)
+  revenueSharePct Float    @default(0.0)
+  status         String    @default("ACTIVE") // ACTIVE, PROBATION, SUSPENDED, TERMINATED
+  joinedDate     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  contracts      FranchiseContract[]
+  schools        School[]
+  franchises     Franchise[]
+
+  @@map("partners")
+}
+
+model Franchise {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  partnerId           String?
+  partner             Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  code                String    @unique // e.g. "FR-MUM-01"
+  legalEntityName     String
+  tradeBrandName      String    @default("Vedic Tree Academy")
+  franchiseeName      String
+  email               String
+  phone               String
+  city                String
+  state               String    @default("Maharashtra")
+  territory           String    // e.g. "Mumbai West - Bandra & Khar"
+  territoryExclusivity Boolean  @default(true)
+  status              String    @default("ACTIVE") // ACTIVE, ONBOARDING, AUDIT_HOLD, TERMINATED
+  onboardingDate      DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  contracts           FranchiseContract[]
+  schools             School[]
+  audits              ComplianceAudit[]
+  supportTickets      FranchiseSupportTicket[]
+  royaltyInvoices     RoyaltyInvoice[]
+  performance         SchoolPerformance[]
+
+  @@map("franchises")
+}
+
+model FranchiseContract {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  contractNumber     String    @unique // e.g. "CTR-FR-2024-001"
+  franchiseId        String?
+  franchise          Franchise? @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  partnerId          String?
+  partner            Partner?   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  contractType       String    @default("FRANCHISE_AGREEMENT") // FRANCHISE_AGREEMENT, PARTNER_JV, MANAGEMENT_SERVICES
+  startDate          DateTime
+  endDate            DateTime
+  termYears          Int       @default(5)
+  royaltyModel       String    @default("PERCENT_OF_REVENUE") // PERCENT_OF_REVENUE, FIXED_PER_STUDENT, TIERED_ENROLLMENT, HYBRID
+  royaltyRatePct     Float     @default(12.0) // 12% of collections
+  royaltyPerStudent  Float     @default(0.0) // if per student
+  minMonthlyRoyalty  Float     @default(50000.0) // Minimum Guarantee / floor
+  upfrontFranchiseFee Float    @default(1500000.0) // ₹15 Lakhs
+  securityDeposit    Float     @default(500000.0)
+  status             String    @default("ACTIVE") // DRAFT, ACTIVE, RENEWAL_DUE, EXPIRED, TERMINATED
+  termsJson          String?   // JSON structured covenants
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("franchise_contracts")
+}
+
+model ComplianceAudit {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  schoolId           String
+  franchiseId        String?
+  franchise          Franchise? @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
+  auditCode          String    @unique // e.g. "AUD-2026-Q1-01"
+  auditDate          DateTime
+  auditorName        String
+  category           String    // ACADEMIC_STANDARDS, INFRASTRUCTURE_SAFETY, FIRE_SAFETY_NOC, TEACHER_QUALIFICATION, BRAND_IDENTITY
+  score              Float     // 0 - 100
+  maxScore           Float     @default(100.0)
+  passingScore       Float     @default(75.0)
+  status             String    @default("COMPLIANT") // COMPLIANT, CONDITIONAL_PASS, NON_COMPLIANT, CRITICAL_VIOLATION
+  findings           String
+  remediationPlan    String?
+  remediationDeadline DateTime?
+  verifiedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([schoolId, status])
+  @@map("compliance_audits")
+}
+
+model RoyaltyInvoice {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  schoolId           String
+  franchiseId        String?
+  franchise          Franchise? @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
+  invoiceNumber      String    @unique // e.g. "ROY-2026-M09-001"
+  billingPeriod      String    // e.g. "2026-09"
+  grossRevenue       Float     // Base student fee collections for the month
+  studentCount       Int       // Enrolled students in the period
+  computedRoyalty    Float     // Calculated royalty before floor/tax
+  appliedFloor       Float     @default(0.0) // MMR applied if computed < floor
+  taxAmount          Float     // 18% GST
+  totalPayable       Float     // (computed or MMR) + GST
+  status             String    @default("INVOICED") // PENDING, INVOICED, PAID, OVERDUE, DISPUTED
+  dueDate            DateTime
+  paidDate           DateTime?
+  paymentReference   String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([schoolId, billingPeriod])
+  @@map("royalty_invoices")
+}
+
+model SchoolPerformance {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  schoolId           String    @unique
+  franchiseId        String?
+  franchise          Franchise? @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
+  currentEnrollment  Int
+  totalCapacity      Int
+  occupancyRatePct   Float     // (currentEnrollment / totalCapacity) * 100
+  feeCollectionRatePct Float   // % collected vs billed
+  academicRating     Float     // 1.0 - 5.0 scale
+  teacherRetentionPct Float    // % retained YoY
+  npsScore           Float     // Net Promoter Score (-100 to 100)
+  healthGrade        String    @default("A") // A+, A, B, C, CRITICAL
+  lastEvaluatedAt    DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("school_performance")
+}
+
+model FranchiseSupportTicket {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  franchiseId        String?
+  franchise          Franchise? @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
+  schoolId           String
+  ticketCode         String    @unique // e.g. "FST-2026-0042"
+  category           String    // ACADEMIC_CURRICULUM, MARKETING_ADMISSIONS, STAFF_RECRUITMENT, ERP_TRAINING, LEGAL_COMPLIANCE, BILLING_ROYALTY
+  priority           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  subject            String
+  description        String
+  status             String    @default("OPEN") // OPEN, IN_PROGRESS, WAITING_HQ, RESOLVED, CLOSED
+  submittedById      String
+  assignedHqUserId   String?
+  resolutionNotes    String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([franchiseId, status])
+  @@map("franchise_support_tickets")
+}

@@ -1,67 +1,154 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Playfair Display", Georgia, Cambria, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-display: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    /* ==========================================================================
+       VEDIC TREE OS — CLIENT DESIGN SYSTEM SPECIFICATION
+       "Indian wisdom. Modern learning."
+       Surface Ratio: 65% Ivory, 20% Forest, 7% Botanical, 4% Gold, 2% Lime, 1% Violet, 1% Coral
+       ========================================================================== */
 
-    /* Vedic Tree OS Heritage Palette */
-    --vt-green: #0F4C35;
-    --vt-green-light: #16654A;
-    --vt-green-surface: #0A2E20;
-    --vt-saffron: #F59E0B;
-    --vt-saffron-light: #FBBF24;
-    
-    /* Modern Slate Neutrals */
-    --bg-canvas: #090D16;
-    --bg-surface: #0F172A;
-    --bg-card: #141E33;
-    --bg-elevated: #1E293B;
-    --border-subtle: #24324D;
-    --border-hover: #3B4D70;
+    /* Typography */
+    --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-    --text-primary: #F8FAFC;
-    --text-muted: #94A3B8;
-    --text-dim: #64748B;
+    /* Primary Enterprise Palette (65% Neutral/Ivory, 20% Deep Forest) */
+    --vt-forest-deep: #0B2F29;     /* 20% Sidebar, Primary Anchor, Deep Ink */
+    --vt-forest-mid: #154E42;      /* Active Nav Surface, Primary CTA */
+    --vt-botanical: #2D705C;       /* 7% Botanical/Sage Tones */
+    --vt-ivory-warm: #FBF8EF;      /* 65% Main Workspace Canvas */
+    --vt-ivory-soft: #F4EEDC;      /* Card Background, Inset Surfaces */
+    --vt-white: #FFFFFF;           /* Card elevated surface */
+
+    /* Premium Accent (4%) */
+    --vt-gold: #C49A3A;            /* 4% Antique Gold Milestone & Nav Marker */
+    --vt-gold-soft: #DFC679;       /* Soft Gold accents & text */
+
+    /* Education Accents (Selective) */
+    --vt-lime: #87E51F;            /* 2% Learning Lime (Growth/Progress) */
+    --vt-violet: #5D27E8;          /* 1% Vedic Violet (Reflection/Dhyana) */
+
+    /* High-Contrast Readability Status & Semantic (WCAG AAA) */
+    --vt-ink: #0B2F29;             /* Primary text: Deep authoritative forest ink */
+    --vt-slate-muted: #334E47;     /* Secondary / Muted labels: Darkened for crystal clear legibility */
+    --vt-coral: #D93829;           /* 1% Critical warnings / Exceptions */
+
+    /* Borders & Subtle Elevation */
+    --vt-border-warm: #E6DFD1;
+    --vt-border-subtle: #EFE9DD;
+    --vt-border-forest: rgba(21, 78, 66, 0.25);
+
+    /* Mapped Semantic System */
+    --color-bg-canvas: #FBF8EF;
+    --color-bg-surface: #FFFFFF;
+    --color-bg-subtle: #F4EEDC;
+    --color-bg-elevated: #FFFFFF;
+    --color-border-subtle: #E6DFD1;
+    --color-border-strong: #D9D0BE;
+    --color-text-primary: #0B2F29;
+    --color-text-secondary: #334E47;
+    --color-text-muted: #4A665F;
+    --color-text-dim: #648078;
+
+    --color-primary: #0B2F29;
+    --color-primary-hover: #154E42;
+    --color-primary-subtle: #EAE6D6;
+    --color-accent: #C49A3A;
+    --color-accent-subtle: #F7EFCF;
+
+    --color-success: #2D705C;
+    --color-success-bg: #EAF3EF;
+    --color-warning: #C49A3A;
+    --color-warning-bg: #FDF8E8;
+    --color-danger: #D93829;
+    --color-danger-bg: #FDF0EE;
+    --color-info: #154E42;
+    --color-info-bg: #EDF4F2;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: var(--bg-canvas);
-    color: var(--text-primary);
+    background-color: var(--vt-ivory-warm);
+    color: var(--vt-ink);
     line-height: 1.5;
     overflow-x: hidden;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
+  /* Headings: Clean, modern, authoritative Sans-Serif by default */
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.02em;
-    font-weight: 600;
-    color: #FFFFFF;
+    font-family: var(--font-sans);
+    color: var(--vt-forest-deep);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
   }
 
-  code, pre, .font-mono {
+  /* Explicit Typography Utilities */
+  .font-sans {
+    font-family: var(--font-sans);
+  }
+
+  .font-serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+
+  .font-mono {
     font-family: var(--font-mono);
+  }
+
+  /* Accessibility & Readability Overrides: Eliminate low-contrast washed-out slate */
+  .text-\[\#60706B\],
+  .text-\[\#7E8D88\] {
+    color: var(--vt-slate-muted) !important;
+  }
+
+  /* Readability floor: prevent illegible micro-serif/micro-text (<11px) on standard screens */
+  .text-\[9px\] {
+    font-size: 0.6875rem !important; /* 11px */
+    line-height: 1rem !important;
+  }
+
+  .text-\[10px\] {
+    font-size: 0.75rem !important; /* 12px */
+    line-height: 1rem !important;
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar in Forest & Warm Ivory */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090D16;
+  background: #F4EEDC;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #24324D;
+  background: #2D705C;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3B4D70;
+  background: #154E42;
 }
 
 /* Tabular Numerals for Finance & Roll Numbers */
@@ -69,27 +156,89 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Vedic Badge Variants */
-.badge-green {
-  background-color: rgba(16, 185, 129, 0.12);
-  color: #34D399;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+/* Vedic Tree Institutional Badges */
+.badge-forest {
+  background-color: rgba(11, 47, 41, 0.08);
+  color: #0B2F29;
+  border: 1px solid rgba(11, 47, 41, 0.2);
 }
 
-.badge-saffron {
-  background-color: rgba(245, 158, 11, 0.12);
-  color: #FBBF24;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+.badge-gold {
+  background-color: rgba(196, 154, 58, 0.12);
+  color: #8C6B1C;
+  border: 1px solid rgba(196, 154, 58, 0.3);
 }
 
-.badge-red {
-  background-color: rgba(239, 68, 68, 0.12);
-  color: #F87171;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+.badge-botanical {
+  background-color: rgba(45, 112, 92, 0.1);
+  color: #2D705C;
+  border: 1px solid rgba(45, 112, 92, 0.25);
 }
 
-.badge-slate {
-  background-color: rgba(148, 163, 184, 0.12);
-  color: #94A3B8;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+.badge-lime {
+  background-color: rgba(135, 229, 31, 0.15);
+  color: #3B7207;
+  border: 1px solid rgba(135, 229, 31, 0.35);
+}
+
+.badge-violet {
+  background-color: rgba(93, 39, 232, 0.1);
+  color: #5D27E8;
+  border: 1px solid rgba(93, 39, 232, 0.25);
+}
+
+.badge-coral {
+  background-color: rgba(227, 93, 82, 0.12);
+  color: #C0372C;
+  border: 1px solid rgba(227, 93, 82, 0.25);
+}
+
+/* Shared Button & Form Input Primitives */
+.btn-primary {
+  background-color: #0B2F29;
+  color: #FBF8EF;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(21, 78, 66, 0.4);
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-primary:hover {
+  background-color: #154E42;
+}
+
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: #0B2F29;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #E6DFD1;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-secondary:hover {
+  background-color: #F4EEDC;
+}
+
+.input-field {
+  background-color: #FFFFFF;
+  color: #0B2F29;
+  border-radius: 0.5rem;
+  border: 1px solid #E6DFD1;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.input-field:focus {
+  border-color: #0B2F29;
+  box-shadow: 0 0 0 1px #0B2F29;
+}
+
+/* Focus ring */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--vt-gold);
+  outline-offset: 2px;
 }

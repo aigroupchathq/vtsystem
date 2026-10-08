@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary test profiles
+edge_tmp/
+temp_edge_academics/

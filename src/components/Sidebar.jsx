@@ -4,9 +4,14 @@ import {
   Users, 
   CalendarCheck,
   UserPlus,
+  Banknote,
+  Radio,
+  BookOpen,
+  Boxes,
   ShieldCheck, 
   History, 
-  Building
+  Building,
+  Palette
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -20,6 +25,34 @@ export default function Sidebar({
     {
       group: 'PRIMARY MODULES',
       items: [
+        {
+          id: 'operations',
+          label: 'School Operations',
+          subtitle: 'Assets, Facilities & Safety',
+          icon: Boxes,
+          badge: 'M-08'
+        },
+        {
+          id: 'academics',
+          label: 'Academics & CCE',
+          subtitle: 'Curriculum, Timetable & Cards',
+          icon: BookOpen,
+          badge: 'M-06'
+        },
+        {
+          id: 'communication',
+          label: 'Communication Hub',
+          subtitle: 'Multi-Channel & Campaigns',
+          icon: Radio,
+          badge: 'M-05'
+        },
+        {
+          id: 'finance',
+          label: 'Finance & Fees',
+          subtitle: 'Billing, UPI POS & Ledger',
+          icon: Banknote,
+          badge: 'M-04'
+        },
         {
           id: 'admissions',
           label: 'Admissions CRM',
@@ -71,6 +104,18 @@ export default function Sidebar({
           subtitle: 'Compliance Event Ledger',
           icon: History,
           badge: 'Live'
+        }
+      ]
+    },
+    {
+      group: 'DESIGN SYSTEM & TOKENS',
+      items: [
+        {
+          id: 'design-system',
+          label: 'Design System Showcase',
+          subtitle: 'Tokens, Components & Compass',
+          icon: Palette,
+          badge: 'v2.0'
         }
       ]
     }

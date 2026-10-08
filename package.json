@@ -14,6 +14,7 @@
     "test:module01": "node --test tests/module01-core.test.js",
     "test:module02": "node --test tests/module02-attendance.test.js",
     "test:module03": "node --test tests/module03-admissions.test.js",
+    "test:module04": "node --test tests/module04-finance.test.js",
     "test:e2e": "node --test tests/e2e.test.js",
     "preview": "vite preview"
   },

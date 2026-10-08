@@ -1,172 +1,150 @@
-# VEDIC TREE OS — Engineering Principles
+# VEDIC TREE OS — Engineering Governance & Development Guidelines
 
-This file governs every AI-assisted development session in this repository.
-Read it in full before writing any code.
-
----
-
-## Product Identity
-
-**VEDIC TREE OS** is an India-first, internationally scalable Education
-Operating System. It is:
-
-- An Education OS
-- A School ERP
-- An Admissions CRM
-- A Student Information System
-- An Academic Platform
-- A Parent Platform
-- A Teacher Platform
-- An HRMS
-- A Finance Platform
-- An Operations Platform
-- A Partner/Franchise Platform
-- An Analytics and AI Platform
-
-It is **not** a simple school management tool. Every decision must reflect
-the full scope and the multi-role, multi-tenant, multi-country nature of this
-product.
+> **Authority Order:**
+> 1. Original client-supplied evidence
+> 2. Explicitly approved client requirements
+> 3. VEDIC_TREE_MASTER_CLIENT_CONTEXT.md
+> 4. Product/architecture decisions
+> 5. Proposed extensions
+> 
+> *Where a derived requirement conflicts with original client evidence, the original evidence prevails.*  
+> *Never convert an inference, recommendation or proposed capability into a confirmed client requirement without explicit approval.*
 
 ---
 
-## Non-Negotiable Principles
-
-These apply to every file, every session, every task.
-
-### 1. TypeScript Everywhere
-All source code is TypeScript. No `.js` or `.jsx` files in `apps/` or
-`packages/`. Use `.ts` and `.tsx`. Strict mode is always on.
-
-### 2. One Platform, Many Experiences
-There is one data model, one authorization model, and one design system.
-Role-specific experiences are surfaces of the same underlying product — not
-separate applications. Never duplicate data models or API endpoints across
-roles.
-
-### 3. Multi-Tenancy Is Not Optional
-Every database query, every API call, every UI component must respect the
-tenant boundary. Tenant isolation is enforced at multiple layers:
-PostgreSQL RLS + application middleware + CASL abilities. A bug that allows
-cross-tenant data leakage is a critical security incident.
-
-### 4. Authorization Before Features
-Never build a feature that involves user data without first confirming the
-authorization model for that operation. If the ability is not yet defined in
-the CASL ability definitions, define it first.
-
-### 5. No Hardcoded Locale
-All user-facing strings use the i18n system (t() from next-intl). All
-dates, numbers, currencies, and addresses use locale-aware formatting.
-India is the primary locale (en-IN, hi, mr). Do not hardcode English strings,
-Indian phone number formats, INR symbols, or dd/mm/yyyy formats into
-components.
-
-### 6. Privacy by Design
-VEDIC TREE OS handles data of minors. Every feature that collects, stores,
-or displays personal data must be designed with the minimum necessary data
-principle. Student PII has the highest protection classification. No
-student data is ever logged in plaintext. Review data handling against
-DPDP Act 2023 (India) before implementing any new data collection.
-
-### 7. Modular Monolith — No Premature Extraction
-The backend is a NestJS modular monolith. Do not suggest extracting a
-microservice without an Architecture Decision Record (ADR) in
-`docs/architecture/`. Internal module boundaries must be respected:
-modules communicate through service injection or internal events — never
-by directly importing another module's repository or database layer.
-
-### 8. Test Coverage Is Mandatory
-No feature PR may be merged without unit tests for business logic, and
-integration tests for API endpoints. E2E tests are required for critical
-user journeys. The test suite must pass on every PR.
-
-### 9. Decisions Are Recorded
-If a task requires a significant architectural choice that is not already
-documented in `docs/00-decisions.md`, stop and add an ADR entry before
-proceeding. Do not make architectural decisions silently.
-
-### 10. Do Not Overwrite Working Code
-Do not rewrite existing working code solely because you prefer a different
-implementation style. If a rewrite is necessary, explain why in the PR
-description or in an ADR.
+## PRODUCT INTERPRETATION
+> We are translating the client's stated educational and operating model into a multi-centre education operating system.  
+> This is our product architecture interpretation, not a verbatim client claim.
 
 ---
 
-## Repository Layout
+## 0. Master Client Context & Strategic North Star
+
+All agents must adhere to the Master Client Context:
+> *"Create the digital operating infrastructure that allows Vedic Tree to deliver, measure, govern and scale its academic, character-based, experiential and hybrid education model consistently across a multi-centre network."*
+
+### Critical Architectural Boundaries
+1. **Parent Company Platform / IP vs School SPVs**:
+   - Parent retains: Brand, franchise business, online learning, Gurukul pedagogy, curriculum IP, technology platform, marketing IP.
+   - School SPVs encompass: Physical campus operations, student enrollments, campus fees, local staff, local reporting.
+   - **No Parent Equity in SPVs**. Enforce clean digital separation between Parent IP and School SPV operating records.
+2. **AI Principle (Optional Future Enabling Layer)**:
+   - **AI is an optional future enabling layer.** The shell may reserve a non-dominant extension point for AI, but AI capabilities must **not** be represented as existing, client-approved or operational until separately validated.
+   - The client PDFs establish technology, hybrid learning, and online learning, but do not mention AI.
+   - In Prompt 03, the visible AI Copilot is removed from the primary shell view.
+3. **Socio-Emotional & EQ+IQ+SQ Safeguarding**:
+   - The EQ+IQ+SQ model and socio-emotional metrics represent an educational framework, **not** clinical or psychiatric diagnoses.
+   - Distinguish: Direct Teacher Observation $\rightarrow$ Formative Educational Assessment $\rightarrow$ Self/Teacher-Reported Indicators $\rightarrow$ Formally Validated Instruments. Never generate deterministic psychiatric labels.
+4. **Financial & Planning Provenance**:
+   - Projections and investor exit sensitivities (₹15 Cr package, 5-year milestones) are **Management Planning Assumptions**, not audited facts. Financial ledgers in the OS must track audited double-entry reality.
+5. **Capability Classification Standard**:
+   - `[SOURCE]`: Explicitly supported by client documents (curriculum, technology, HR/training, branding, legal, marketing, finance/accounts, admissions, administration, events, parent partnership, extracurricular development, employee safety, housekeeping, maintenance).
+   - `[ENABLER]`: Technically required to make an explicit requirement function reliably (authentication, multi-tenant isolation, audit trail, role authorization, data persistence).
+   - `[PROPOSED]`: Recommended product capability requiring validation (WhatsApp, procurement, transport, visitor management, inventory, reconciliation, performance management, invoices, ledger, counselling pipeline, campus visits, AI extensions).
+
+## 1. Product Identity & Sovereign Hierarchy
 
 ```
-vedic-tree-os/
-├── apps/
-│   ├── web/          # Next.js 14+ — App Router, TypeScript, Tailwind, shadcn
-│   ├── api/          # NestJS — TypeScript, Prisma, REST, OpenAPI
-│   └── mobile/       # React Native + Expo (v1.1 — placeholder only in v1)
-├── packages/
-│   ├── types/        # Shared TypeScript types and Zod schemas
-│   ├── ui/           # Shared component library (shadcn/ui base)
-│   └── config/       # Shared ESLint, TypeScript, Tailwind configs
-├── infra/            # Terraform — Google Cloud infrastructure
-├── docs/             # Architecture, product, UX, API, security, testing docs
-├── .agents/          # AI governance: rules and skills
-│   ├── rules/        # Domain-specific rule files (always loaded)
-│   └── skills/       # On-demand procedural skills
-└── .github/          # GitHub Actions workflows
+VEDIC TREE PARENT / PLATFORM
+│
+├── Brand / Curriculum / Technology / Online Learning / Franchise IP
+│
+└── Operating Entities
+     ├── SPV / School Portfolio
+     │    ├── School (CBSE / ICSE / Pre-school)
+     │    └── Campus (Panvel, Kharghar, Thane, Dombivli, Kalyan, etc.)
+     │         └── Cohort / Class / Division
+     │              └── Student
+     │                   └── Learning + Total Development
+     └── Other Authorised Operating Models (Owned, Partner, Franchise)
+```
+
+The domain model must **never** assume that `organisation → campus` represents simple single-entity legal ownership.
+
+### PROPOSED SYSTEM PERSONAS — subject to client validation:
+The 12 personas (HQ Admin, Director, Principal, HOD, Teacher, Counsellor, HR/Admin, Finance, Parent, Student, Partner, Franchise Owner) are proposed role abstractions for system modeling, subject to client validation. Source-backed participants are Students, Parents, Teachers, Management, Partners/Franchisees, and Central Functions.
+
+---
+
+## 2. The Four Non-Negotiable Invariants
+
+1. **Tenancy Invariant (Zero Cross-School Leakage)**: Every database query, service call, and component MUST enforce `campusId` / `schoolId` scoping. Foreign lookups throw `403 Forbidden`. Only `HQ_ADMIN` holds universal cross-campus visibility.
+2. **Privacy Invariant (Safeguarding Vault)**: Sensitive child protection incidents (`SAFEGUARDING`, `BULLYING`, `HARASSMENT`, `MEDICAL_EMERGENCY`) are strictly redacted for non-safeguarding staff (`TEACHER`, general employees). Direct unauthorized lookups throw `403 Forbidden` and trigger an immutable audit entry.
+3. **Financial Invariant (Balanced Ledgers)**: Every fee invoice, payment, refund, and royalty adheres to balanced double-entry accounting. Multi-currency architecture with first-class India/UPI abstractions.
+4. **Ownership Invariant (Distinct Operating Models)**: `OWNED`, `PARTNER`, and `FRANCHISE` represent fundamentally distinct contractual, financial, and governance relationships.
+
+---
+
+## 3. The Six Demonstration Pillars
+
+Every feature in the presentation must reinforce these six pillars:
+
+1. **Executive Command Center**: Network overview (Schools, Students, Staff, Admissions, Collections, Attendance), Network Health indicators, and "Needs Attention" items.
+2. **School Operations**: Fixed physical assets, live inventory dispatch guards, collision-free facility booking, and gated visitor passes.
+3. **Student 360 (Hero Experience)**: Centered on **Aarav Sharma** (Grade 7A), featuring the **Vedic Tree Development Compass** (Academics, Character & Values, Emotional Wellbeing, Physical Wellbeing, Life Skills).
+4. **Teacher / Academic Workflow**: **Teacher My Day**, frictionless attendance logging, timetable schedule, lesson objectives, and CCE 9-point grading.
+5. **Admissions → Enrollment**: 10-stage funnel with WhatsApp-first qualification, campus visits, entrance assessments, and instant student conversion.
+6. **Parent Experience**: **My Child** portal displaying real-time attendance, homework, report cards, teacher communication, and UPI fee clearance.
+
+---
+
+## 4. Controlled Product Development Sequence
+
+Development proceeds strictly in controlled stages:
+
+```text
+PROMPT 01: Project Initialization & Constitution Skeleton (Current)
+     ↓
+PROMPT 02: Design System (Typography, Spacing, Cards, Surfaces, Tokens)
+     ↓
+PROMPT 03: Application Shell & Unified Navigation (HQ, Principal, Teacher, Parent)
+     ↓
+PROMPT 04: Flagship Experience 1 — HQ Command Center & Next Best Action
+     ↓
+PROMPT 05: Flagship Experience 2 — Student 360 & Vedic Tree Development Compass
+     ↓
+PROMPT 06: Flagship Experience 3 — Admissions Funnel & Commercial Engine
+     ↓
+PROMPT 07: Testing, Polish & End-to-End Rehearsal
 ```
 
 ---
 
-## Technology Decisions (Confirmed)
+## 5. Technology Stack & Operational Baseline
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14+ · React 18 · TypeScript · Tailwind CSS · shadcn/ui · Radix UI |
-| Data Fetching | TanStack Query (server state) · React Hook Form + Zod (forms) |
-| Backend | NestJS · TypeScript · REST · OpenAPI · Prisma ORM |
-| Database | PostgreSQL (Cloud SQL) · pgvector (AI features) |
-| Auth | JWT access tokens + refresh tokens · NestJS Guards · CASL |
-| Caching | Redis (Memorystore) · BullMQ (job queues) |
-| Infrastructure | Google Cloud · Cloud Run · Cloud SQL · Cloud Storage · Pub/Sub |
-| IaC | Terraform |
-| Observability | OpenTelemetry · Google Cloud Monitoring · Sentry |
-| AI | Gemini · Vertex AI · RAG pipeline |
-| Communications | WhatsApp Business · SMS (MSG91) · Email (AWS SES) · FCM |
-| Payments | Razorpay (India) · Stripe (international) |
-| Mobile | React Native · Expo (v1.1) |
-| Testing | Vitest · React Testing Library · Supertest · Playwright · k6 |
-| CI/CD | GitHub Actions |
-| i18n | next-intl (web) · i18n-js (mobile) |
+- **Runtime & Build**: Node.js, Vite, React 19, ESNext / TypeScript standards.
+- **Design System**: Vanilla CSS tokens + Tailwind v4 utilities, dark slate palette (`#0F172A`), high-contrast typography (Outfit, Inter, JetBrains Mono), Lucide React icons.
+- **Data Engine**: Multi-tenant Prisma schema (`prisma/schema.prisma`), persistent memory database (`src/database/db.js`), Canonical Seed Fixtures (`src/database/seed-data.js`).
+- **Test Framework**: Native Node test runner (`node --test`), 186+ unit and integration tests across 42 suites with 100% pass rate.
+- **Quality Gates**: `oxlint` (0 errors), `npm test` (0 failures), `vite build` (clean bundle).
 
 ---
 
-## Detailed Rules
+## 6. Directory Structure & Documentation Map
 
-Domain-specific rules are in `.agents/rules/`. They are always loaded.
-
-- `01-architecture.md` — Modular monolith structure, module boundaries
-- `02-typescript.md` — TypeScript strictness, type patterns
-- `03-frontend.md` — Next.js, component patterns, styling
-- `04-backend.md` — NestJS modules, services, pipes
-- `05-database.md` — Prisma, migrations, query patterns
-- `06-api.md` — REST conventions, OpenAPI, versioning
-- `07-security.md` — Auth, secrets, input validation, OWASP
-- `08-testing.md` — Test structure, coverage, naming
-- `09-ux-ui.md` — Design system, accessibility, interaction
-- `10-multi-tenancy.md` — Tenant isolation, CASL, RLS
-- `11-internationalization.md` — i18n, locale, formatting
-- `12-ai-safety.md` — AI usage, prompt safety, data handling
-- `13-documentation.md` — Code comments, ADRs, README standards
-- `14-git-commits.md` — Branch naming, commit messages, PR standards
-
----
-
-## Audit and Decisions Register
-
-- `docs/00-project-audit.md` — Initial state assessment
-- `docs/00-decisions.md` — Architecture Decision Register (ADR)
-
-All open decisions (status: OPEN) in `docs/00-decisions.md` must be
-resolved before the features that depend on them are implemented.
+```text
+├── .agents/
+│   ├── rules/          # 14 specialized architectural & security rule sets
+│   └── skills/         # Automated engineering skills & workflows
+├── docs/
+│   ├── constitution/   # VEDIC_TREE_OS_CONSTITUTION.md (Highest authority)
+│   ├── product/        # Product vision, personas, module specifications
+│   ├── ux/             # UX strategy, user journeys, role experiences
+│   ├── ui/             # Design principles, color tokens, typography, components
+│   ├── architecture/   # Architecture overview, ADRs (D-001 to D-023), audit models
+│   ├── database/       # Schema documentation, ERDs, tenancy model, indexing
+│   ├── security/       # Data classification, RBAC matrices, safeguarding rules
+│   ├── testing/        # Test strategies, integration suites, test inventory
+│   └── deployment/     # Local runbook, environment config, cloud deployment
+├── prisma/             # Multi-tenant schema definition (40+ models)
+├── src/
+│   ├── components/     # Enterprise UI components & flagship modules
+│   ├── database/       # Core transactional engine & canonical seed fixtures
+│   └── modules/        # Domain-driven service layers (SIS, Finance, Academics, Operations, etc.)
+└── tests/              # 42 automated test suites (186 tests)
+```
 
 ---
 
-*Maintainer: Principal Engineering Lead*
-*Last updated: 2026-10-02*
+*Maintainer: Lead Product Architect & Principal Engineer*  
+*Last Updated: October 2026*

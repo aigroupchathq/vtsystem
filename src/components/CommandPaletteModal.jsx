@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, GraduationCap, Users, Building, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Search, X, GraduationCap, Users, Building, ShieldCheck, ArrowRight, BookOpen, Boxes } from 'lucide-react';
 import { db } from '../database/db.js';
 
 export default function CommandPaletteModal({
@@ -58,14 +58,34 @@ export default function CommandPaletteModal({
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2 px-1">
               Quick Navigation
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                onClick={() => { onNavigate('operations'); onClose(); }}
+                className="p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-left flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-2">
+                  <Boxes className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-white">Operations</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </button>
+              <button
+                onClick={() => { onNavigate('academics'); onClose(); }}
+                className="p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-left flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs text-white">Academics</span>
+                </div>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </button>
               <button
                 onClick={() => { onNavigate('students'); onClose(); }}
                 className="p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-left flex items-center justify-between group"
               >
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs text-white">Students Directory</span>
+                  <span className="text-xs text-white">Students</span>
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
               </button>
@@ -75,7 +95,7 @@ export default function CommandPaletteModal({
               >
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs text-white">Staff Directory</span>
+                  <span className="text-xs text-white">Staff</span>
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
               </button>

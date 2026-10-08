@@ -670,6 +670,234 @@ Institutions require lead pipelines, counselor task workspaces, campus tour logs
 
 ---
 
+## D-019 — Module 04: Finance, Fees, Multi-Currency Ledger & Payment Gateway Abstraction
+
+**Status:** DECIDED
+**Date Raised:** 2026-10-02
+**Date Decided:** 2026-10-02
+**Blocking:** NO
+
+### Context
+Finance and Fee collection represents the institutional cash flow backbone of K-12 and higher education institutions. The system must support:
+- Fee Structures: Multi-component fees (Tuition, Transport, Admission, Library, Lab, Examination) with flexible frequencies (Annual, Term, Monthly, One-time).
+- Fee Assignment: Cohort/Grade-wide or individualized student fee assignments.
+- Invoicing: Generation of immutable invoices with due schedules, line items, automatic late-fee rules, and tax/discount calculations.
+- Payments & Receipts: Real-time collection across multi-channels (UPI, Net Banking, Cards, Cash, Cheque, Demand Draft, Bank Transfer) with instant receipt numbering (`RCP-YYYY-XXXX`).
+- Refunds: Full and partial refunds against settled receipts with supervisor authorization and double-entry ledger reversals.
+- Discounts & Scholarships: Configurable concession rules (Sibling discounts, Academic merit, Staff ward, RTE, Need-based waivers).
+- Outstanding & Aging: Aging analysis (Current, 1-30, 31-60, 60+ days) and automated payment reminder tracking.
+- Institutional Double-Entry Accounting: A chart of accounts where every invoice, receipt, discount, and refund maintains the mathematical invariant:
+  $$\sum \text{Debits} \equiv \sum \text{Credits}$$
+
+**Critical Architecture Requirements:**
+1. Zero country-specific logic hardcoded into the core business domain.
+2. Abstract currency service supporting ISO-4217, integer minor-unit math (eliminating IEEE 754 floating-point errors), and localized formatting (e.g. Indian Lakhs/Crores `₹1,50,000.00` vs International `150,000.00`).
+3. Abstract payment gateway interface (`IPaymentGateway`) with pluggable adapters:
+   - India: UPI (VPA, dynamic QR codes, instant intents), NetBanking, Razorpay.
+   - International: Stripe, Card rails, multi-currency processing.
+   - Testing/Sandbox: Deterministic Mock Gateway.
+
+### Decision
+1. **Core Domain Independence**:
+   - All core entities (`FeeStructure`, `Invoice`, `Payment`, `Receipt`, `Refund`, `LedgerEntry`) operate strictly on dimensionless numerical amounts (minor units / cents / paise) and standard ISO currency codes.
+2. **Currency Abstraction (`CurrencyService`)**:
+   - Handles localized symbol rendering, decimal scaling, and formatters via the Strategy Pattern.
+3. **Pluggable Payment Gateway Abstraction (`IPaymentGateway`)**:
+   - Unified contract: `createOrder()`, `verifyPayment()`, `processRefund()`, `generateUpiQr()`.
+   - Concrete adapters registered dynamically in a `PaymentGatewayRegistry`.
+4. **Institutional Double-Entry Ledger (`LedgerService`)**:
+   - Double-entry accounting ensures balance across Assets (Cash, Bank, Receivables), Liabilities (Advance Deposits), Revenue (Tuition, Transport, etc.), and Contra-Revenue (Discounts, Scholarships).
+5. **Auditing & Tenancy**:
+   - Strict `campus_id` partitioning across all financial tables. Financial reversals are non-destructive and generate new compensating journal entries.
+
+### Consequences
+- Institutions can operate in India with native UPI and INR, or internationally in USD, AED, GBP, EUR without core code modifications.
+- Complete regulatory and statutory audit readiness.
+
+---
+
+---
+
+## D-020 — Module 05: Communication Center & Multi-Channel Provider Adapter Framework
+
+**Status:** DECIDED
+**Date Raised:** 2026-10-02
+**Decision Maker:** Antigravity Architect / Principal Engineering Agent
+
+### Context
+Educational institutions require multi-channel communication across five core channels:
+1. **WhatsApp** (Rich interactive notifications, visit confirmations, fee receipts, offer letters)
+2. **SMS** (Urgent emergency alerts, OTPs, DLT-compliant regulatory announcements)
+3. **Email** (Detailed invoices, circulars, newsletters, academic progress reports)
+4. **Push Notifications** (Mobile/Web app instant notifications for live updates)
+5. **In-App Notifications** (Real-time bell notification center and user inbox)
+
+**Critical Architecture Requirements:**
+1. **Zero Provider Coupling**: Do not hard-code vendor SDKs or specific gateway implementations (Meta Cloud, Twilio, MSG91, SendGrid, AWS SES, FCM) into the business domain.
+2. **Dynamic Provider Adapter Framework**: Each channel uses a standardized provider interface allowing seamless switching, tenant overrides, sandbox mocking, and fallbacks.
+3. **Audience Targeting & Dynamic Resolution**: Support targeting by Grade, Division, Department, Role, or Campus-wide, automatically resolving active recipients with valid contact endpoints.
+4. **Template Studio & Variable Interpolation**: Channel-agnostic templates with variable interpolation (`{{studentName}}`, `{{amount}}`, `{{dueDate}}`, `{{campusName}}`).
+5. **Delivery Lifecycle & Resilient State Machine**: Track delivery states (`QUEUED`, `SCHEDULED`, `SENDING`, `SENT`, `DELIVERED`, `READ`, `FAILED`).
+6. **Exponential Backoff & Smart Retries**: Differentiate transient network/rate-limit failures from permanent delivery failures (invalid phone/email/unsubscribed).
+7. **Granular Notification Preferences**: Recipients can opt-in/opt-out of non-critical categories (`CAMPUS_EVENTS`, `GENERAL_BROADCASTS`), while system-critical transactional alerts (`FEE_ALERTS`, `EMERGENCY_ALERTS`) bypass opt-outs.
+
+### Decision
+1. **Channel Provider Interfaces**:
+   - `IChannelProvider` base contract defining `getChannel()`, `getProviderId()`, `send()`, and `checkStatus()`.
+   - Concrete implementations:
+     - WhatsApp: `MetaCloudWhatsAppProvider`, `TwilioWhatsAppProvider`, `MockWhatsAppProvider`
+     - SMS: `Msg91SmsProvider`, `TwilioSmsProvider`, `MockSmsProvider`
+     - Email: `SendGridEmailProvider`, `AwsSesEmailProvider`, `MockEmailProvider`
+     - Push: `FcmPushProvider`, `WebPushProvider`, `MockPushProvider`
+     - In-App: `InAppNotificationProvider`
+2. **Communication Engine (`CommunicationHubService`)**:
+   - Coordinates template rendering, preference validation, audience resolution, provider dispatch, retry scheduling, and persistent message audit logging.
+3. **Double-State Tracking & Audit Log**:
+   - Every outbound communication creates an immutable communication log and notification record linked to the tenant and campus.
+
+### Consequences
+- Pluggable support for Indian regional providers (MSG91, Meta WhatsApp) and global enterprise providers (Twilio, SendGrid, AWS SES, FCM) with zero core modifications.
+- High resilience and delivery auditability across all five channels.
+
+---
+
+## D-021 — Module 06: Academic Structure, Timetable, Curriculum Delivery & Continuous Comprehensive Evaluation (CCE)
+
+**Status:** DECIDED
+**Date Decided:** 2026-10-02
+**Decision Owner:** Principal Engineering Agent
+
+### Context
+Academic operations form the central instructional heartbeat of Vedic Tree OS. The domain spans structural planning, weekly timetable scheduling, daily instructional delivery, homework lifecycle, assessment evaluation, and summative report cards.
+
+**Critical Architectural Requirements:**
+1. **Hierarchical Academic Structure**:
+   - `AcademicYear` $\rightarrow$ `Grade` $\rightarrow$ `Division` $\rightarrow$ `Subject` $\rightarrow$ `TeacherAssignment`.
+   - Distinct separation between organizational course offerings (`Subject`) and campus-level operational assignments (`TeacherAssignment` linking Teacher + Subject + Division + Academic Year).
+2. **Timetable & Conflict Detection**:
+   - Weekday periods (Periods 1–8, Mon–Sat) with strict clash-prevention invariants:
+     - Invariant 1: No teacher can be assigned to multiple divisions in the same period on the same day (unless tagged as co-teaching/substitution).
+     - Invariant 2: No division can have multiple subjects scheduled in the same period on the same day.
+3. **Curriculum & Instructional Flow**:
+   - `Lesson`: Unit/Chapter tracking with instructional objectives, planned date, completion date, and status (`PLANNED`, `IN_PROGRESS`, `COMPLETED`).
+   - `Homework` & `AssignmentSubmission`: Assignment publishing, due dates, student submission tracking, and teacher grading with feedback.
+4. **Continuous Comprehensive Evaluation (CCE) & Grading Engine**:
+   - `Assessment`: Formative (`FORMATIVE`), Summative (`SUMMATIVE`), Periodic Tests (`PERIODIC_TEST`), Half-Yearly (`HALF_YEARLY`), and Annual (`ANNUAL`) with maximum and passing marks.
+   - `Result`: Marks recording per student with automated CCE 9-point scale letter grade calculation (A1: 91-100%, A2: 81-90%, B1: 71-80%, B2: 61-70%, C1: 51-60%, C2: 41-50%, D: 33-40%, E: <33% Needs Improvement).
+   - `ReportCard`: Aggregated term summaries compiling subject-wise marks, weighted percentage, overall grade, attendance percentages from Module 02, and formal publication/signing workflow.
+5. **Teacher Context Memory Pattern ("Remembered Context")**:
+   - Teachers should not have to repetitively re-select their Academic Year, Grade, Division, and Subject on every action.
+   - Context is preserved across session navigation and local storage, defaulting automatically to their assigned division and subject.
+6. **Dedicated Personas & Workspaces**:
+   - *Teacher My Day*: High-efficiency command center showing today's period schedule, active lesson tracker, pending homework grading queue, and quick attendance/assignment links.
+   - *Academic Dashboard*: Campus-level administrator and coordinator overview with timetable matrix, curriculum coverage gauges, gradebook, and batch report card generation.
+   - *Student Academic View*: Student/parent portal showing today's classes, homework planner, assessment history, and published report cards.
+
+### Decision
+1. **Domain Models**:
+   - Add models: `Subject`, `TeacherAssignment`, `TimetablePeriod`, `Lesson`, `Homework`, `AssignmentSubmission`, `Assessment`, `Result`, `ReportCard`.
+2. **Academic Service (`AcademicsService`)**:
+   - Orchestrates timetable validation, clash checks, lesson state transitions, submission grading, CCE grade computation, and report card publishing.
+3. **Teacher Context Memory (`TeacherContextStore`)**:
+   - Stateful manager synchronizing active academic selections with persistence.
+4. **Tenant & Campus Isolation**:
+   - All academic records strictly bounded by `campusId` with universal oversight for `HQ_ADMIN`.
+
+### Consequences
+- Eliminates scheduling collisions and double-booking.
+- Drastically reduces clicks and context friction for faculty members via Teacher My Day and context memory.
+- Standardizes grade reporting across national (CBSE, ICSE, State) and international boards.
+
+---
+
+## D-022 — Module 08: School Operations, Physical Asset Register, Inventory, Procurement, Facilities, Safeguarding Incidents & Transport Foundation
+
+**Status:** DECIDED
+**Date Decided:** 2026-10-02
+**Decision Owner:** Principal Engineering Agent
+
+### Context
+Educational institutions require robust campus operational infrastructure spanning physical asset management, consumables inventory, vendor and procurement governance, facility scheduling, maintenance workflows, security visitor gate pass logging, grievance redressal, student transport logistics, and safety incident reporting.
+
+**Critical Architectural & Security Requirements:**
+1. **Physical Asset & Fixed Asset Register**:
+   - Tracking assets with code, category (`IT_HARDWARE`, `LAB_EQUIPMENT`, `FURNITURE`, `ELECTRICAL`, `VEHICLE`), location, custodian employee, cost, and lifecycle status (`IN_USE`, `UNDER_MAINTENANCE`, `DECOMMISSIONED`).
+2. **Inventory Stock Management & Auditing**:
+   - Tracking inventory units, reorder thresholds, and immutable inward/outward stock movement audit logs.
+3. **Vendors & Procurement Governance**:
+   - Vendor master directory with performance ratings and compliance status.
+   - Purchase order lifecycle with approval gates (`DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `RECEIVED`, `CANCELLED`) and budget accountability.
+4. **Facilities & Maintenance Workflows**:
+   - Space and room inventory with capacity, amenities, and reservation management.
+   - Maintenance ticketing with priorities (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), resolution states, and technician assignment.
+5. **Visitor Gate Pass Management**:
+   - Digital visitor check-in, host tracking, identity proof logging, and departure reconciliation.
+6. **Strict Protection of Sensitive Incidents & Safeguarding**:
+   - Campus incidents vary from routine minor first-aid or property damage to highly sensitive child protection, bullying, harassment, and medical emergencies.
+   - **Privacy Invariant**: Sensitive incidents (`isSensitive === true` or category in `['SAFEGUARDING', 'BULLYING', 'HARASSMENT', 'MEDICAL_EMERGENCY']`) must NEVER be exposed in raw form to unauthorized staff or general users.
+   - Standard roles (`TEACHER`, general staff) only receive non-sensitive incidents, or redacted placeholders without student identity, private narrative, or internal confidential notes.
+   - Full access is strictly gated behind `operations:sensitive_incidents_read` and logged in audit trails.
+7. **Complaints & Grievance Redressal**:
+   - Structured grievance handling for parents, students, and staff with SLA tracking.
+8. **Transport Foundation**:
+   - Vehicle fleet tracking (insurance, fitness, PUC, capacity) and bus route scheduling with stop timings and fees.
+
+### Decision
+1. Implement 13 operations entities in Prisma schema and database: `Asset`, `InventoryItem`, `StockTransaction`, `Vendor`, `PurchaseOrder`, `Facility`, `FacilityBooking`, `MaintenanceRequest`, `VisitorLog`, `Incident`, `Complaint`, `Vehicle`, `TransportRoute`.
+2. Encapsulate business logic in `OperationsService` with strict permission gates and automatic redaction of sensitive incident fields for unauthorized callers.
+3. Log audit events for critical operations (purchase orders, visitor gate passes, and sensitive incident access).
+4. Build a unified School Operations Command Center UI with tabs for Assets & Facilities, Inventory & Procurement, Maintenance, Visitors, Incidents & Safeguarding, Complaints, and Transport Fleet.
+
+### Consequences
+- Assures student privacy and safeguarding compliance (POCSO/legal standards) while retaining operational transparency.
+- Establishes full lifecycle traceability from procurement request to asset decommissioning.
+
+---
+
+## D-023 — Module 10: Partner + Franchise Platform, School Ownership Models, Contracts, Compliance, Royalties & Multi-Tenant Isolation
+
+**Status:** DECIDED
+**Date Decided:** 2026-10-02
+**Decision Owner:** Principal Engineering Agent
+
+### Context
+Vedic Tree OS operates a hybrid national education network across three distinct school ownership models:
+1. **OWNED**: Trust/Corporate-owned flagship schools with direct capital investment and operational execution.
+2. **PARTNER**: Strategic joint ventures and academic partnerships sharing revenue, capital expenditure, and local brand presence.
+3. **FRANCHISE**: Licensed independent education entrepreneurs operating standardized campuses under strict curriculum, brand identity, and quality covenants in exchange for upfront license fees and ongoing royalties.
+
+**Key Requirements & Invariants:**
+1. **Multi-Model Hierarchy**:
+   - Entities: `Partner`, `Franchise`, `FranchiseContract`, `School`, `ComplianceAudit`, `RoyaltyInvoice`, `SchoolPerformance`, `FranchiseSupportTicket`.
+   - Clear classification of schools by `ownershipType` (`OWNED`, `PARTNER`, `FRANCHISE`).
+2. **Contract & Royalty Engine**:
+   - Contracts define validity, term, territory exclusivity, minimum monthly royalty (MMR), and calculation models (`PERCENT_OF_REVENUE`, `FIXED_PER_STUDENT`, `TIERED_ENROLLMENT`, `HYBRID`).
+   - Automated royalty computation with MMR floor and GST (18%).
+3. **Quality & Regulatory Compliance**:
+   - Formal school inspections across academic standards, infrastructure safety, teacher qualifications, fire safety NOC, and brand integrity.
+   - Objective score calculation with conditional pass or non-compliance sanctions.
+4. **School Performance Benchmarking**:
+   - Occupancy rate, fee collection efficiency, academic satisfaction, teacher retention, and overall health scoring.
+5. **Franchise Support & SLA Ticketing**:
+   - Structured escalation channel between franchisees/partners and HQ departments (Academic, Marketing, Legal, Billing).
+6. **Strict RBAC & Cross-Tenant / Cross-School Isolation Barrier**:
+   - **HQ Permissions (`HQ_ADMIN`)**: Universal oversight across all partners, franchises, contracts, compliance enforcement, and royalty invoicing.
+   - **Partner Permissions (`PARTNER_OPERATOR`)**: Scoped strictly to partner-owned schools and JV revenue share. Strictly blocked from viewing other partners or independent franchises.
+   - **Franchise Permissions (`FRANCHISEE`)**: Scoped strictly to the licensee's own franchise unit, contract terms, royalty invoices, and support tickets. Forbidden from accessing other franchises' revenue, contracts, or audits.
+   - **School Permissions (`PRINCIPAL`)**: Scoped to the individual campus operational execution without access to corporate equity contracts or network-wide financial royalties.
+
+### Decision
+1. Add Prisma models: `Partner`, `Franchise`, `FranchiseContract`, `ComplianceAudit`, `RoyaltyInvoice`, `SchoolPerformance`, `FranchiseSupportTicket`.
+2. Implement `FranchiseService` and database layer enforcing ownership filters, royalty calculation logic, and strict tenant boundaries.
+3. Implement automated test suites validating contract formulas, cross-franchise isolation, and cross-school data blocking.
+4. Build a comprehensive Partner & Franchise Management Hub with 7 operational views.
+
+### Consequences
+- Unlocks scalable franchisee onboarding while preserving brand quality standards and regulatory compliance.
+- Guarantees zero data leakage across competitive franchise operators.
+
+---
+
 ## ADR Change Log
 
 | Date | ID | Change |
@@ -678,9 +906,15 @@ Institutions require lead pipelines, counselor task workspaces, campus tour logs
 | 2026-10-02 | D-016 | Module 01 Student + Employee Core Architectural Implementation (DECIDED) |
 | 2026-10-02 | D-017 | Module 02 Attendance, Leave & Configurable Policy Engine (DECIDED) |
 | 2026-10-02 | D-018 | Module 03 Admissions CRM & Provider-Agnostic Communication Engine (DECIDED) |
+| 2026-10-02 | D-019 | Module 04 Finance, Fees, Multi-Currency Ledger & Payment Gateway Abstraction (DECIDED) |
+| 2026-10-02 | D-020 | Module 05 Communication Center & Multi-Channel Provider Adapter Framework (DECIDED) |
+| 2026-10-02 | D-021 | Module 06 Academic Structure, Timetable, Curriculum, Teacher Workflow & CCE (DECIDED) |
+| 2026-10-02 | D-022 | Module 08 School Operations, Assets, Inventory, Procurement, Facilities, Incidents & Transport (DECIDED) |
+| 2026-10-02 | D-023 | Module 10 Partner + Franchise Platform, School Ownership Models, Contracts, Compliance & Royalties (DECIDED) |
 
 ---
 
 Generated by Antigravity — Principal Engineering Agent
 Previous document: 00-project-audit.md
+
 

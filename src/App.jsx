@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import Topbar from './components/Topbar.jsx';
-import Sidebar from './components/Sidebar.jsx';
-import TenantSwitcherModal from './components/TenantSwitcherModal.jsx';
-import CommandPaletteModal from './components/CommandPaletteModal.jsx';
 import LoginModal from './components/LoginModal.jsx';
 import StudentsDirectory from './components/sis/StudentsDirectory.jsx';
 import StudentAdmissionModal from './components/sis/StudentAdmissionModal.jsx';
 import StudentProfileModal from './components/sis/StudentProfileModal.jsx';
+import Student360View from './components/sis/Student360View.jsx';
 import EmployeesDirectory from './components/hrms/EmployeesDirectory.jsx';
 import EmployeeOnboardModal from './components/hrms/EmployeeOnboardModal.jsx';
 import EmployeeProfileModal from './components/hrms/EmployeeProfileModal.jsx';
@@ -22,19 +19,42 @@ import LeadDetailModal from './components/admissions/LeadDetailModal.jsx';
 import TenantHierarchyView from './components/platform/TenantHierarchyView.jsx';
 import RbacMatrixView from './components/platform/RbacMatrixView.jsx';
 import AuditLogsView from './components/platform/AuditLogsView.jsx';
+import { FinanceHub } from './components/finance/FinanceHub.jsx';
+import CommunicationHub from './components/communication/CommunicationHub.jsx';
+import AcademicsHub from './components/academics/AcademicsHub.jsx';
+import { OperationsHub } from './components/operations/index.js';
+import { DesignSystemShowcase } from './design-system/showcase/DesignSystemShowcase.jsx';
+import { OverviewDashboard } from './components/overview/OverviewDashboard.jsx';
+import { AppShell } from './components/shell/index.js';
 import { AuthService } from './modules/platform/auth.service.js';
 
 export default function App() {
-  // Initial default authentication (HQ Administrator)
-  const initialSession = AuthService.login('admin@vedictree.edu.in', 'admin123');
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialNav = urlParams?.get('nav') || 'overview';
+  const roleParam = urlParams?.get('role')?.toLowerCase();
+
+  // Resolve user session from roleParam or default to HQ Admin
+  let initialSession;
+  if (roleParam === 'principal') {
+    initialSession = AuthService.login('principal.baner@vedictree.edu.in', 'principal123');
+  } else if (roleParam === 'teacher') {
+    initialSession = AuthService.login('sunita.patil@vedictree.edu.in', 'teacher123');
+  } else if (roleParam === 'parent') {
+    initialSession = AuthService.login('priya.deshmukh@gmail.com', 'parent123');
+  } else if (roleParam === 'student') {
+    initialSession = AuthService.login('aarav.sharma@student.vedictree.edu.in', 'student123');
+  } else {
+    initialSession = AuthService.login('admin@vedictree.edu.in', 'admin123');
+  }
+
+  const initialStudentId = urlParams?.get('studentId') || (roleParam === 'student' ? 'stu-aarav-sharma' : null);
 
   const [session, setSession] = useState(initialSession);
-  const [activeNav, setActiveNav] = useState('students');
+  const [activeNav, setActiveNav] = useState(initialNav);
   const [toastMessage, setToastMessage] = useState('');
+  const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
 
   // Modals state
-  const [isTenantSwitcherOpen, setIsTenantSwitcherOpen] = useState(false);
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
@@ -50,7 +70,7 @@ export default function App() {
   const [selectedConvertLead, setSelectedConvertLead] = useState(null);
   const [selectedConvertApp, setSelectedConvertApp] = useState(null);
   const [selectedDetailLeadId, setSelectedDetailLeadId] = useState(null);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
 
   const showToast = (msg) => {
@@ -84,43 +104,98 @@ export default function App() {
     setIsLoginModalOpen(true);
   };
 
+  const handleSwitchUser = (email, password) => {
+    try {
+      const newSession = AuthService.login(email, password);
+      handleLoginSuccess(newSession);
+    } catch (err) {
+      showToast(err.message);
+    }
+  };
+
   // Active Context for all service operations
   const activeTenantContext = {
     organizationId: session.tenantContext.organizationId,
     campusId: session.tenantContext.activeCampusId,
+    activeCampusId: session.tenantContext.activeCampusId,
     userId: session.user.id,
     userRole: session.user.role
   };
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col font-sans">
-      {/* Toast banner */}
-      {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-emerald-950 border border-emerald-500/50 text-emerald-300 px-4 py-2.5 rounded-xl shadow-2xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-200">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>{toastMessage}</span>
-        </div>
+    <>
+      <AppShell
+      session={session}
+      activeNav={activeNav}
+      onSelectNav={(target, params) => {
+        if (params?.studentId) setSelectedStudentId(params.studentId);
+        if (params?.employeeId) setSelectedEmployeeId(params.employeeId);
+        if (params?.leadId) setSelectedDetailLeadId(params.leadId);
+        setActiveNav(target);
+      }}
+      onSwitchCampus={handleSwitchCampus}
+      onSwitchUser={handleSwitchUser}
+      onLogout={handleLogout}
+      toastMessage={toastMessage}
+      isScopeModalOpen={isScopeModalOpen}
+      onOpenScopeModal={() => setIsScopeModalOpen(true)}
+      onCloseScopeModal={() => setIsScopeModalOpen(false)}
+    >
+      {activeNav === 'overview' && (
+        <OverviewDashboard
+          tenantContext={activeTenantContext}
+          currentUser={session.user}
+          onNavigate={(target, params) => {
+            if (params?.studentId) setSelectedStudentId(params.studentId);
+            if (params?.employeeId) setSelectedEmployeeId(params.employeeId);
+            if (params?.leadId) setSelectedDetailLeadId(params.leadId);
+            setActiveNav(target);
+          }}
+          onSwitchCampus={handleSwitchCampus}
+          onOpenScopeModal={() => setIsScopeModalOpen(true)}
+        />
       )}
 
-      {/* Global Topbar with Persistent Tenant Switcher */}
-      <Topbar
-        currentUser={session.user}
-        tenantContext={session.tenantContext}
-        onOpenTenantSwitcher={() => setIsTenantSwitcherOpen(true)}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
-        onLogout={handleLogout}
-      />
-
-      {/* Layout Body: Sidebar + Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          activeNav={activeNav}
-          onSelectNav={setActiveNav}
+      {activeNav === 'operations' && (
+        <OperationsHub
+          currentCampus={{
+            id: session.tenantContext.activeCampusId,
+            name: session.tenantContext.campuses?.find(c => c.id === session.tenantContext.activeCampusId)?.name || 'Panvel Campus [Demo Campus]'
+          }}
           currentUser={session.user}
         />
+      )}
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+      {activeNav === 'academics' && (
+        <AcademicsHub
+          context={{
+            ...activeTenantContext,
+            campusName: session.tenantContext.campuses?.find(c => c.id === session.tenantContext.activeCampusId)?.name || 'Panvel Campus [Demo Campus]'
+          }}
+          onShowToast={showToast}
+            />
+          )}
+
+          {activeNav === 'communication' && (
+            <CommunicationHub
+              context={{
+                ...activeTenantContext,
+                campusName: session.tenantContext.campuses?.find(c => c.id === session.tenantContext.activeCampusId)?.name || 'Panvel Campus [Demo Campus]'
+              }}
+              onShowToast={showToast}
+            />
+          )}
+
+          {activeNav === 'finance' && (
+            <FinanceHub
+              context={{
+                ...activeTenantContext,
+                userName: `${session.user.firstName} ${session.user.lastName}`,
+                campusName: session.tenantContext.campuses?.find(c => c.id === session.tenantContext.activeCampusId)?.name || 'Panvel Campus [Demo Campus]'
+              }}
+            />
+          )}
+
           {activeNav === 'admissions' && (
             <AdmissionsHub
               tenantContext={activeTenantContext}
@@ -146,15 +221,63 @@ export default function App() {
           )}
 
           {activeNav === 'students' && (
-            <StudentsDirectory
+            session.user.role === 'PARENT' ? (
+              <Student360View
+                studentId="stu-aarav-sharma"
+                tenantContext={activeTenantContext}
+                currentUser={session.user}
+                onBack={() => setActiveNav('overview')}
+                onNavigate={(target, params) => {
+                  if (params?.studentId) setSelectedStudentId(params.studentId);
+                  setActiveNav(target);
+                }}
+              />
+            ) : session.user.role === 'STUDENT' ? (
+              <Student360View
+                studentId="stu-aarav-sharma"
+                tenantContext={activeTenantContext}
+                currentUser={session.user}
+                onBack={() => setActiveNav('overview')}
+                onNavigate={(target, params) => {
+                  if (params?.studentId) setSelectedStudentId(params.studentId);
+                  setActiveNav(target);
+                }}
+              />
+            ) : selectedStudentId ? (
+              <Student360View
+                studentId={selectedStudentId}
+                tenantContext={activeTenantContext}
+                currentUser={session.user}
+                onBack={() => setSelectedStudentId(null)}
+                onNavigate={(target, params) => {
+                  if (params?.studentId) setSelectedStudentId(params.studentId);
+                  setActiveNav(target);
+                }}
+              />
+            ) : (
+              <StudentsDirectory
+                tenantContext={activeTenantContext}
+                currentUser={session.user}
+                onOpenAdmissionModal={() => setIsAdmissionModalOpen(true)}
+                onSelectStudent={(id) => setSelectedStudentId(id)}
+              />
+            )
+          )}
+
+          {activeNav === 'student-360' && (
+            <Student360View
+              studentId={selectedStudentId || 'stu-kabir-deshmukh'}
               tenantContext={activeTenantContext}
               currentUser={session.user}
-              onOpenAdmissionModal={() => setIsAdmissionModalOpen(true)}
-              onSelectStudent={(id) => setSelectedStudentId(id)}
+              onBack={() => setActiveNav('students')}
+              onNavigate={(target, params) => {
+                if (params?.studentId) setSelectedStudentId(params.studentId);
+                setActiveNav(target);
+              }}
             />
           )}
 
-          {activeNav === 'employees' && (
+          {(activeNav === 'employees' || activeNav === 'hrms') && (
             <EmployeesDirectory
               tenantContext={activeTenantContext}
               currentUser={session.user}
@@ -187,25 +310,13 @@ export default function App() {
           {activeNav === 'audit' && (
             <AuditLogsView tenantContext={activeTenantContext} />
           )}
-        </main>
-      </div>
+
+          {activeNav === 'design-system' && (
+            <DesignSystemShowcase onBack={() => setActiveNav('students')} />
+          )}
+      </AppShell>
 
       {/* Modals & Dialogs */}
-      <TenantSwitcherModal
-        isOpen={isTenantSwitcherOpen}
-        onClose={() => setIsTenantSwitcherOpen(false)}
-        tenantContext={session.tenantContext}
-        currentUser={session.user}
-        onSwitchCampus={handleSwitchCampus}
-      />
-
-      <CommandPaletteModal
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        tenantContext={activeTenantContext}
-        onNavigate={(target) => setActiveNav(target)}
-      />
-
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
@@ -222,10 +333,11 @@ export default function App() {
       />
 
       <StudentProfileModal
-        isOpen={Boolean(selectedStudentId)}
+        isOpen={Boolean(selectedStudentId) && activeNav !== 'students' && activeNav !== 'student-360'}
         onClose={() => setSelectedStudentId(null)}
         studentId={selectedStudentId}
         tenantContext={activeTenantContext}
+        currentUser={session.user}
       />
 
       <EmployeeOnboardModal
@@ -330,6 +442,6 @@ export default function App() {
         onShowToast={showToast}
         onRefresh={() => {}}
       />
-    </div>
+    </>
   );
 }
